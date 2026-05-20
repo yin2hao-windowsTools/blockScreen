@@ -7,7 +7,7 @@ internal sealed class BrightnessController : IDisposable
     private readonly SemaphoreSlim _lock = new(1, 1);
     private IReadOnlyList<IBrightnessRestorePoint>? _restorePoints;
 
-    public async Task DimAsync(CancellationToken cancellationToken = default)
+    public async Task DimAsync(IReadOnlyCollection<string> displayDeviceNames, CancellationToken cancellationToken = default)
     {
         await _lock.WaitAsync(cancellationToken).ConfigureAwait(false);
         var restorePoints = new List<IBrightnessRestorePoint>();
@@ -19,11 +19,20 @@ internal sealed class BrightnessController : IDisposable
                 return;
             }
 
-            TryDim(_wmiProvider, restorePoints);
+            var targetDisplayDeviceNames = ScreenShadeSettings.NormalizeDisplayDeviceNames(displayDeviceNames);
+            var allDisplaysSelected = Screen.AllScreens.All(screen => targetDisplayDeviceNames.Contains(screen.DeviceName));
+            if (targetDisplayDeviceNames.Count == 0 || allDisplaysSelected)
+            {
+                TryDim(_wmiProvider, restorePoints, null);
+            }
+
             if (restorePoints.Count == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                TryDim(_physicalMonitorProvider, restorePoints);
+                TryDim(
+                    _physicalMonitorProvider,
+                    restorePoints,
+                    targetDisplayDeviceNames.Count == 0 || allDisplaysSelected ? null : targetDisplayDeviceNames);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -93,11 +102,14 @@ internal sealed class BrightnessController : IDisposable
         }
     }
 
-    private static void TryDim(IBrightnessProvider provider, ICollection<IBrightnessRestorePoint> restorePoints)
+    private static void TryDim(
+        IBrightnessProvider provider,
+        ICollection<IBrightnessRestorePoint> restorePoints,
+        IReadOnlySet<string>? displayDeviceNames)
     {
         try
         {
-            foreach (var restorePoint in provider.DimToMinimum())
+            foreach (var restorePoint in provider.DimToMinimum(displayDeviceNames))
             {
                 restorePoints.Add(restorePoint);
             }

@@ -4,7 +4,7 @@ namespace ScreenShade.App.Brightness;
 
 internal sealed class PhysicalMonitorBrightnessProvider : IBrightnessProvider
 {
-    public IReadOnlyList<IBrightnessRestorePoint> DimToMinimum()
+    public IReadOnlyList<IBrightnessRestorePoint> DimToMinimum(IReadOnlySet<string>? displayDeviceNames)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -18,12 +18,30 @@ internal sealed class PhysicalMonitorBrightnessProvider : IBrightnessProvider
             IntPtr.Zero,
             (monitorHandle, _, _, _) =>
             {
+                if (displayDeviceNames is { Count: > 0 } &&
+                    !displayDeviceNames.Contains(GetDisplayDeviceName(monitorHandle)))
+                {
+                    return true;
+                }
+
                 restorePoints.AddRange(DimMonitor(monitorHandle));
                 return true;
             },
             IntPtr.Zero);
 
         return restorePoints;
+    }
+
+    private static string GetDisplayDeviceName(IntPtr monitorHandle)
+    {
+        var monitorInfo = new NativeMethods.MonitorInfoEx
+        {
+            Size = Marshal.SizeOf<NativeMethods.MonitorInfoEx>()
+        };
+
+        return NativeMethods.GetMonitorInfo(monitorHandle, ref monitorInfo)
+            ? monitorInfo.DeviceName
+            : string.Empty;
     }
 
     private static IReadOnlyList<IBrightnessRestorePoint> DimMonitor(IntPtr monitorHandle)
@@ -94,6 +112,27 @@ internal sealed class PhysicalMonitorBrightnessProvider : IBrightnessProvider
             public string Description;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct Rect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        internal struct MonitorInfoEx
+        {
+            public int Size;
+            public Rect Monitor;
+            public Rect WorkArea;
+            public uint Flags;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string DeviceName;
+        }
+
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool EnumDisplayMonitors(
@@ -101,6 +140,10 @@ internal sealed class PhysicalMonitorBrightnessProvider : IBrightnessProvider
             IntPtr clipRect,
             MonitorEnumProc callback,
             IntPtr data);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetMonitorInfo(IntPtr monitorHandle, ref MonitorInfoEx monitorInfo);
 
         [DllImport("dxva2.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]

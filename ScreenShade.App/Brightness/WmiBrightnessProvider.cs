@@ -6,9 +6,14 @@ internal sealed class WmiBrightnessProvider : IBrightnessProvider
 {
     private const string Scope = @"root\WMI";
 
-    public IReadOnlyList<IBrightnessRestorePoint> DimToMinimum()
+    public IReadOnlyList<IBrightnessRestorePoint> DimToMinimum(IReadOnlySet<string>? displayDeviceNames)
     {
         if (!OperatingSystem.IsWindows())
+        {
+            return [];
+        }
+
+        if (displayDeviceNames is { Count: > 0 })
         {
             return [];
         }
