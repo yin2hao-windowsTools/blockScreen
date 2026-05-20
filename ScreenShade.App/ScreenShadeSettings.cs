@@ -10,13 +10,29 @@ internal sealed class ScreenShadeSettings
 
     public bool DimHardwareBrightness { get; set; } = true;
 
+    public HotKeySettings ToggleShadeHotKey { get; set; } = HotKeySettings.DefaultToggle();
+
+    public HotKeySettings QuickDelayHotKey { get; set; } = HotKeySettings.DefaultDelayMenu();
+
     public ScreenShadeSettings Clone()
     {
+        var toggleShadeHotKey = ToggleShadeHotKey?.Normalize(HotKeySettings.DefaultToggle())
+            ?? HotKeySettings.DefaultToggle();
+        var quickDelayHotKey = QuickDelayHotKey?.Normalize(HotKeySettings.DefaultDelayMenu())
+            ?? HotKeySettings.DefaultDelayMenu();
+
+        if (toggleShadeHotKey.HasSameGesture(quickDelayHotKey))
+        {
+            quickDelayHotKey = HotKeySettings.DefaultDelayMenu();
+        }
+
         return new ScreenShadeSettings
         {
             DisplayDeviceNames = [.. NormalizeDisplayDeviceNames(DisplayDeviceNames)],
             DelaySeconds = Math.Clamp(DelaySeconds, 0, 3600),
-            DimHardwareBrightness = DimHardwareBrightness
+            DimHardwareBrightness = DimHardwareBrightness,
+            ToggleShadeHotKey = toggleShadeHotKey,
+            QuickDelayHotKey = quickDelayHotKey
         };
     }
 
@@ -72,12 +88,15 @@ internal sealed class SettingsStore
 
     public ScreenShadeSettings Settings { get; private set; }
 
+    public event EventHandler? SettingsChanged;
+
     public void Save(ScreenShadeSettings settings)
     {
         var normalizedSettings = settings.Clone();
         Directory.CreateDirectory(SettingsDirectory);
         File.WriteAllText(SettingsFilePath, JsonSerializer.Serialize(normalizedSettings, SerializerOptions));
         Settings = normalizedSettings;
+        SettingsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private static ScreenShadeSettings Load()
