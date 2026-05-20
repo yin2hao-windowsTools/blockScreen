@@ -3,10 +3,12 @@ namespace ScreenShade.App;
 internal sealed class OverlayForm : Form
 {
     private readonly Action _dismiss;
+    private readonly Point _initialMousePosition;
 
     public OverlayForm(Rectangle bounds, Action dismiss)
     {
         _dismiss = dismiss;
+        _initialMousePosition = Cursor.Position;
 
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Color.Black;
@@ -39,6 +41,16 @@ internal sealed class OverlayForm : Form
     {
         _dismiss();
         base.OnMouseDown(e);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        if (Cursor.Position != _initialMousePosition)
+        {
+            _dismiss();
+        }
+
+        base.OnMouseMove(e);
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)

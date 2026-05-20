@@ -4,30 +4,52 @@ namespace ScreenShade.App;
 
 internal sealed class GlobalHotKeyWindow : NativeWindow, IDisposable
 {
-    private const int HotKeyId = 100;
+    private const int ToggleShadeHotKeyId = 100;
+    private const int QuickDelayHotKeyId = 101;
     private const int WmHotKey = 0x0312;
     private const uint ModAlt = 0x0001;
     private const uint ModControl = 0x0002;
-    private const uint VkB = 0x42;
+    private const uint ModShift = 0x0004;
+    private const uint ModNoRepeat = 0x4000;
 
-    private readonly Action _onPressed;
-    private bool _registered;
+    private readonly Action _onToggleShade;
+    private readonly Action _onQuickDelay;
+    private bool _toggleShadeRegistered;
+    private bool _quickDelayRegistered;
 
-    public GlobalHotKeyWindow(Action onPressed)
+    public GlobalHotKeyWindow(Action onToggleShade, Action onQuickDelay)
     {
-        _onPressed = onPressed;
+        _onToggleShade = onToggleShade;
+        _onQuickDelay = onQuickDelay;
         CreateHandle(new CreateParams());
-        _registered = NativeMethods.RegisterHotKey(Handle, HotKeyId, ModControl | ModAlt, VkB);
     }
 
-    public bool IsRegistered => _registered;
+    public bool IsToggleShadeRegistered => _toggleShadeRegistered;
+
+    public bool IsQuickDelayRegistered => _quickDelayRegistered;
+
+    public void Apply(ScreenShadeSettings settings)
+    {
+        UnregisterAll();
+
+        var normalizedSettings = settings.Clone();
+        _toggleShadeRegistered = Register(ToggleShadeHotKeyId, normalizedSettings.ToggleShadeHotKey);
+        _quickDelayRegistered = Register(QuickDelayHotKeyId, normalizedSettings.QuickDelayHotKey);
+    }
 
     protected override void WndProc(ref Message m)
     {
-        if (m.Msg == WmHotKey && m.WParam.ToInt32() == HotKeyId)
+        if (m.Msg == WmHotKey)
         {
-            _onPressed();
-            return;
+            switch (m.WParam.ToInt32())
+            {
+                case ToggleShadeHotKeyId:
+                    _onToggleShade();
+                    return;
+                case QuickDelayHotKeyId:
+                    _onQuickDelay();
+                    return;
+            }
         }
 
         base.WndProc(ref m);
@@ -35,13 +57,54 @@ internal sealed class GlobalHotKeyWindow : NativeWindow, IDisposable
 
     public void Dispose()
     {
-        if (_registered)
+        UnregisterAll();
+        DestroyHandle();
+    }
+
+    private bool Register(int id, HotKeySettings hotKey)
+    {
+        if (!hotKey.IsValid)
         {
-            NativeMethods.UnregisterHotKey(Handle, HotKeyId);
-            _registered = false;
+            return false;
         }
 
-        DestroyHandle();
+        return NativeMethods.RegisterHotKey(Handle, id, ToModifiers(hotKey), (uint)hotKey.Key);
+    }
+
+    private void UnregisterAll()
+    {
+        if (_toggleShadeRegistered)
+        {
+            NativeMethods.UnregisterHotKey(Handle, ToggleShadeHotKeyId);
+            _toggleShadeRegistered = false;
+        }
+
+        if (_quickDelayRegistered)
+        {
+            NativeMethods.UnregisterHotKey(Handle, QuickDelayHotKeyId);
+            _quickDelayRegistered = false;
+        }
+    }
+
+    private static uint ToModifiers(HotKeySettings hotKey)
+    {
+        var modifiers = ModNoRepeat;
+        if (hotKey.Control)
+        {
+            modifiers |= ModControl;
+        }
+
+        if (hotKey.Alt)
+        {
+            modifiers |= ModAlt;
+        }
+
+        if (hotKey.Shift)
+        {
+            modifiers |= ModShift;
+        }
+
+        return modifiers;
     }
 
     private static partial class NativeMethods
