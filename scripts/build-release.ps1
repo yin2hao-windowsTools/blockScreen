@@ -101,6 +101,7 @@ function New-InstallerSource {
     <Feature Id="MainFeature" Title="A1 Screen Shade" Level="1">
       <ComponentRef Id="AppExecutable" />
       <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
     </Feature>
 
     <StandardDirectory Id="ProgramFilesFolder">
@@ -119,6 +120,13 @@ function New-InstallerSource {
           <RegistryValue Root="HKCU" Key="Software\A1 Screen Shade" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
         </Component>
       </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="{C9051A3E-3BB4-4A6B-9D5E-30E5A6E2AA5A}">
+        <Shortcut Id="ApplicationDesktopShortcut" Name="A1 Screen Shade" Target="[INSTALLFOLDER]A1ScreenShade.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\A1 Screen Shade" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
     </StandardDirectory>
   </Package>
 </Wix>
