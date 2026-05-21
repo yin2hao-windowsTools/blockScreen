@@ -7,6 +7,7 @@ internal sealed class ManagementForm : Form
     private readonly CheckedListBox _displayList = new();
     private readonly NumericUpDown _delayInput = new();
     private readonly CheckBox _brightnessCheckBox = new();
+    private readonly CheckBox _startupCheckBox = new();
     private readonly HotKeyInputBox _toggleHotKeyInput = new();
     private readonly HotKeyInputBox _quickDelayHotKeyInput = new();
     private readonly Label _stateLabel = new();
@@ -55,7 +56,7 @@ internal sealed class ManagementForm : Form
         };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 132));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
 
@@ -84,12 +85,15 @@ internal sealed class ManagementForm : Form
         {
             ColumnCount = 4,
             Dock = DockStyle.Fill,
-            Padding = new Padding(0, 14, 0, 0)
+            Padding = new Padding(0, 14, 0, 0),
+            RowCount = 2
         };
         settingsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         settingsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
         settingsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         settingsPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        settingsPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+        settingsPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var delayLabel = new Label
         {
@@ -122,6 +126,13 @@ internal sealed class ManagementForm : Form
         };
         refreshButton.Click += (_, _) => RefreshDisplayList();
         settingsPanel.Controls.Add(refreshButton, 3, 0);
+
+        _startupCheckBox.AutoSize = true;
+        _startupCheckBox.Dock = DockStyle.Top;
+        _startupCheckBox.Margin = new Padding(0, 8, 0, 0);
+        _startupCheckBox.Text = "开机自启动";
+        settingsPanel.Controls.Add(_startupCheckBox, 0, 1);
+        settingsPanel.SetColumnSpan(_startupCheckBox, 3);
 
         root.Controls.Add(settingsPanel, 0, 2);
 
@@ -182,7 +193,7 @@ internal sealed class ManagementForm : Form
         _shadeButton.Click += (_, _) => ToggleShade();
         buttonPanel.Controls.Add(_shadeButton);
 
-        root.Controls.Add(buttonPanel, 0, 3);
+        root.Controls.Add(buttonPanel, 0, 4);
         Controls.Add(root);
     }
 
@@ -191,6 +202,7 @@ internal sealed class ManagementForm : Form
         var settings = _settingsStore.Settings;
         _delayInput.Value = Math.Clamp(settings.DelaySeconds, (int)_delayInput.Minimum, (int)_delayInput.Maximum);
         _brightnessCheckBox.Checked = settings.DimHardwareBrightness;
+        _startupCheckBox.Checked = StartupRegistration.IsEnabled();
         _toggleHotKeyInput.HotKey = settings.ToggleShadeHotKey;
         _quickDelayHotKeyInput.HotKey = settings.QuickDelayHotKey;
         RefreshDisplayList();
@@ -227,6 +239,7 @@ internal sealed class ManagementForm : Form
         if (TryBuildSettings(out var settings))
         {
             _settingsStore.Save(settings);
+            SaveStartupRegistration();
             UpdateState();
         }
     }
@@ -245,7 +258,21 @@ internal sealed class ManagementForm : Form
         }
 
         _settingsStore.Save(settings);
+        SaveStartupRegistration();
         _overlayController.ShowShade(settings);
+    }
+
+    private void SaveStartupRegistration()
+    {
+        try
+        {
+            StartupRegistration.SetEnabled(_startupCheckBox.Checked);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"开机自启动设置保存失败：{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            _startupCheckBox.Checked = StartupRegistration.IsEnabled();
+        }
     }
 
     private bool TryBuildSettings(out ScreenShadeSettings settings)
