@@ -1,14 +1,20 @@
+using System.Runtime.InteropServices;
+
 namespace ScreenShade.App;
 
 internal sealed class OverlayForm : Form
 {
+    private const int WmKeyDown = 0x0100;
+    private const int WmKeyUp = 0x0101;
+    private const int WmSysKeyDown = 0x0104;
+    private const int WmSysKeyUp = 0x0105;
+
     private readonly Action _dismiss;
-    private readonly Point _initialMousePosition;
+    private readonly HashSet<Keys> _keysDownOnOpen = CapturePressedKeys();
 
     public OverlayForm(Rectangle bounds, Action dismiss)
     {
         _dismiss = dismiss;
-        _initialMousePosition = Cursor.Position;
 
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Color.Black;
@@ -43,24 +49,49 @@ internal sealed class OverlayForm : Form
         base.OnMouseDown(e);
     }
 
-    protected override void OnMouseMove(MouseEventArgs e)
+    protected override void WndProc(ref Message m)
     {
-        if (Cursor.Position != _initialMousePosition)
+        switch (m.Msg)
         {
-            _dismiss();
+            case WmKeyDown:
+            case WmSysKeyDown:
+            {
+                var key = (Keys)m.WParam.ToInt32();
+                // Ignore the launch hotkey until its keys are released.
+                if (_keysDownOnOpen.Remove(key))
+                {
+                    break;
+                }
+
+                _dismiss();
+                return;
+            }
+            case WmKeyUp:
+            case WmSysKeyUp:
+                _keysDownOnOpen.Remove((Keys)m.WParam.ToInt32());
+                break;
         }
 
-        base.OnMouseMove(e);
+        base.WndProc(ref m);
     }
 
-    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    private static HashSet<Keys> CapturePressedKeys()
     {
-        if (keyData is Keys.Escape)
+        var pressedKeys = new HashSet<Keys>();
+        for (var virtualKey = 1; virtualKey <= 0xFF; virtualKey++)
         {
-            _dismiss();
-            return true;
+            if ((NativeMethods.GetAsyncKeyState(virtualKey) & 0x8000) != 0)
+            {
+                pressedKeys.Add((Keys)virtualKey);
+            }
         }
 
-        return base.ProcessCmdKey(ref msg, keyData);
+        return pressedKeys;
+    }
+
+    private static partial class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        internal static extern short GetAsyncKeyState(int vKey);
     }
 }
