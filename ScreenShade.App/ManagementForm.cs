@@ -12,7 +12,8 @@ internal sealed class ManagementForm : Form
     private readonly HotKeyInputBox _toggleHotKeyInput = new();
     private readonly HotKeyInputBox _quickDelayHotKeyInput = new();
     private readonly Label _stateLabel = new();
-    private readonly Button _shadeButton = new();
+    private readonly Button _startShadeButton = new();
+    private readonly Button _delayShadeButton = new();
 
     public ManagementForm(SettingsStore settingsStore, OverlayController overlayController, Icon icon)
     {
@@ -203,11 +204,17 @@ internal sealed class ManagementForm : Form
         saveButton.Click += (_, _) => SaveSettings();
         buttonPanel.Controls.Add(saveButton);
 
-        _shadeButton.MinimumSize = new Size(112, 38);
-        _shadeButton.Text = "启动遮罩";
-        _shadeButton.UseVisualStyleBackColor = true;
-        _shadeButton.Click += (_, _) => ToggleShade();
-        buttonPanel.Controls.Add(_shadeButton);
+        _delayShadeButton.MinimumSize = new Size(132, 38);
+        _delayShadeButton.Text = "延时启动遮罩";
+        _delayShadeButton.UseVisualStyleBackColor = true;
+        _delayShadeButton.Click += (_, _) => StartDelayedShade();
+        buttonPanel.Controls.Add(_delayShadeButton);
+
+        _startShadeButton.MinimumSize = new Size(112, 38);
+        _startShadeButton.Text = "启动遮罩";
+        _startShadeButton.UseVisualStyleBackColor = true;
+        _startShadeButton.Click += (_, _) => StartShade();
+        buttonPanel.Controls.Add(_startShadeButton);
 
         root.Controls.Add(buttonPanel, 0, 4);
         Controls.Add(root);
@@ -255,15 +262,14 @@ internal sealed class ManagementForm : Form
     {
         if (TryBuildSettings(out var settings))
         {
-            _settingsStore.Save(settings);
-            SaveStartupRegistration();
+            PersistSettings(settings);
             UpdateState();
         }
     }
 
-    private void ToggleShade()
+    private void StartShade()
     {
-        if (_overlayController.IsActive || _overlayController.IsPending)
+        if (_overlayController.IsActive)
         {
             _overlayController.HideShade();
             return;
@@ -274,9 +280,42 @@ internal sealed class ManagementForm : Form
             return;
         }
 
+        PersistSettings(settings);
+        _overlayController.ShowShade(settings);
+    }
+
+    private void StartDelayedShade()
+    {
+        if (_overlayController.IsPending)
+        {
+            _overlayController.HideShade();
+            return;
+        }
+
+        if (!TryBuildSettings(out var settings))
+        {
+            return;
+        }
+
+        if (settings.DelaySeconds <= 0)
+        {
+            MessageBox.Show(this, "请先将延时启动设置为大于 0 的秒数。", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        PersistSettings(settings);
+        if (_overlayController.IsActive)
+        {
+            _overlayController.HideShade();
+        }
+
+        _overlayController.ShowShadeWithDelay(settings);
+    }
+
+    private void PersistSettings(ScreenShadeSettings settings)
+    {
         _settingsStore.Save(settings);
         SaveStartupRegistration();
-        _overlayController.ShowShade(settings);
     }
 
     private void SaveStartupRegistration()
@@ -387,17 +426,20 @@ internal sealed class ManagementForm : Form
         if (_overlayController.IsActive)
         {
             _stateLabel.Text = "状态: 遮罩已启动";
-            _shadeButton.Text = "关闭遮罩";
+            _startShadeButton.Text = "关闭遮罩";
+            _delayShadeButton.Text = "延时启动遮罩";
         }
         else if (_overlayController.IsPending)
         {
             _stateLabel.Text = "状态: 等待延时结束后启动遮罩";
-            _shadeButton.Text = "取消延时";
+            _startShadeButton.Text = "立即启动遮罩";
+            _delayShadeButton.Text = "取消延时";
         }
         else
         {
             _stateLabel.Text = "状态: 未启动";
-            _shadeButton.Text = "启动遮罩";
+            _startShadeButton.Text = "启动遮罩";
+            _delayShadeButton.Text = "延时启动遮罩";
         }
     }
 

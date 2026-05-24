@@ -9,7 +9,7 @@ A1 Screen Shade is a small Windows tray app that can place a black overlay acros
 - Press `Ctrl+Alt+T` to open the quick timed shade menu, enter a delay, and start the countdown.
 - Double-click the tray icon to open the management page.
 - Choose which displays should be covered.
-- Set `延时启动(秒)` if the overlay should start after a countdown.
+- Use `启动遮罩` for immediate shade, or set `延时启动(秒)` and use `延时启动遮罩` for a countdown start.
 - Change both hotkeys in the management page if the defaults conflict with another app.
 - Or use the tray icon menu and choose `启动遮罩`.
 - Click anywhere on the black screen or press any key to leave shade mode.

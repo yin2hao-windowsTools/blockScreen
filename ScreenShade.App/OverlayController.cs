@@ -26,6 +26,17 @@ internal sealed class OverlayController : IDisposable
         }
 
         CancelPendingShade(false);
+        ShowShadeNow(settings.Clone());
+    }
+
+    public void ShowShadeWithDelay(ScreenShadeSettings settings)
+    {
+        if (_isActive)
+        {
+            return;
+        }
+
+        CancelPendingShade(false);
 
         var settingsSnapshot = settings.Clone();
         if (settingsSnapshot.DelaySeconds > 0)

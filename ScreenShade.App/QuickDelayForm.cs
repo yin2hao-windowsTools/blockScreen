@@ -168,7 +168,7 @@ internal sealed class QuickDelayForm : Form
             _overlayController.HideShade();
         }
 
-        _overlayController.ShowShade(settings);
+        _overlayController.ShowShadeWithDelay(settings);
         Close();
     }
 }
