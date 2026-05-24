@@ -10,11 +10,15 @@ internal sealed class OverlayForm : Form
     private const int WmSysKeyUp = 0x0105;
 
     private readonly Action _dismiss;
+    private readonly bool _exitOnMouseMove;
     private readonly HashSet<Keys> _keysDownOnOpen = CapturePressedKeys();
+    private readonly Point _initialMousePosition;
 
-    public OverlayForm(Rectangle bounds, Action dismiss)
+    public OverlayForm(Rectangle bounds, Action dismiss, bool exitOnMouseMove)
     {
         _dismiss = dismiss;
+        _exitOnMouseMove = exitOnMouseMove;
+        _initialMousePosition = Cursor.Position;
 
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Color.Black;
@@ -47,6 +51,17 @@ internal sealed class OverlayForm : Form
     {
         _dismiss();
         base.OnMouseDown(e);
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        if (_exitOnMouseMove && Cursor.Position != _initialMousePosition)
+        {
+            _dismiss();
+            return;
+        }
+
+        base.OnMouseMove(e);
     }
 
     protected override void WndProc(ref Message m)

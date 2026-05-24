@@ -60,7 +60,7 @@ internal sealed class OverlayController : IDisposable
         var selectedScreens = settings.ResolveScreens();
         foreach (var screen in selectedScreens)
         {
-            var form = new OverlayForm(screen.Bounds, HideShade);
+            var form = new OverlayForm(screen.Bounds, HideShade, settings.ExitOnMouseMove);
             _forms.Add(form);
             form.Show();
         }

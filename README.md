@@ -13,6 +13,7 @@ A1 Screen Shade is a small Windows tray app that can place a black overlay acros
 - Change both hotkeys in the management page if the defaults conflict with another app.
 - Or use the tray icon menu and choose `启动遮罩`.
 - Click anywhere on the black screen or press any key to leave shade mode.
+- Enable `鼠标移动时退出遮罩` in the management page if you also want cursor movement to dismiss the overlay.
 
 Brightness control is best effort: Windows exposes brightness controls differently for internal and external monitors. The overlay always appears even if a monitor refuses hardware brightness changes.
 

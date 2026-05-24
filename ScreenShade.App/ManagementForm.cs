@@ -8,6 +8,7 @@ internal sealed class ManagementForm : Form
     private readonly NumericUpDown _delayInput = new();
     private readonly CheckBox _brightnessCheckBox = new();
     private readonly CheckBox _startupCheckBox = new();
+    private readonly CheckBox _exitOnMouseMoveCheckBox = new();
     private readonly HotKeyInputBox _toggleHotKeyInput = new();
     private readonly HotKeyInputBox _quickDelayHotKeyInput = new();
     private readonly Label _stateLabel = new();
@@ -127,12 +128,27 @@ internal sealed class ManagementForm : Form
         refreshButton.Click += (_, _) => RefreshDisplayList();
         settingsPanel.Controls.Add(refreshButton, 3, 0);
 
+        var optionPanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 6, 0, 0),
+            WrapContents = true
+        };
+
         _startupCheckBox.AutoSize = true;
-        _startupCheckBox.Dock = DockStyle.Top;
-        _startupCheckBox.Margin = new Padding(0, 8, 0, 0);
+        _startupCheckBox.Margin = new Padding(0, 2, 18, 0);
         _startupCheckBox.Text = "开机自启动";
-        settingsPanel.Controls.Add(_startupCheckBox, 0, 1);
-        settingsPanel.SetColumnSpan(_startupCheckBox, 3);
+        optionPanel.Controls.Add(_startupCheckBox);
+
+        _exitOnMouseMoveCheckBox.AutoSize = true;
+        _exitOnMouseMoveCheckBox.Margin = new Padding(0, 2, 0, 0);
+        _exitOnMouseMoveCheckBox.Text = "鼠标移动时退出遮罩";
+        optionPanel.Controls.Add(_exitOnMouseMoveCheckBox);
+
+        settingsPanel.Controls.Add(optionPanel, 0, 1);
+        settingsPanel.SetColumnSpan(optionPanel, 4);
 
         root.Controls.Add(settingsPanel, 0, 2);
 
@@ -202,6 +218,7 @@ internal sealed class ManagementForm : Form
         var settings = _settingsStore.Settings;
         _delayInput.Value = Math.Clamp(settings.DelaySeconds, (int)_delayInput.Minimum, (int)_delayInput.Maximum);
         _brightnessCheckBox.Checked = settings.DimHardwareBrightness;
+        _exitOnMouseMoveCheckBox.Checked = settings.ExitOnMouseMove;
         _startupCheckBox.Checked = StartupRegistration.IsEnabled();
         _toggleHotKeyInput.HotKey = settings.ToggleShadeHotKey;
         _quickDelayHotKeyInput.HotKey = settings.QuickDelayHotKey;
@@ -292,6 +309,7 @@ internal sealed class ManagementForm : Form
         {
             DelaySeconds = (int)_delayInput.Value,
             DimHardwareBrightness = _brightnessCheckBox.Checked,
+            ExitOnMouseMove = _exitOnMouseMoveCheckBox.Checked,
             ToggleShadeHotKey = _toggleHotKeyInput.HotKey,
             QuickDelayHotKey = _quickDelayHotKeyInput.HotKey,
             DisplayDeviceNames = selectedDisplays.Length == _displayList.Items.Count

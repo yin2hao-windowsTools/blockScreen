@@ -10,6 +10,8 @@ internal sealed class ScreenShadeSettings
 
     public bool DimHardwareBrightness { get; set; } = true;
 
+    public bool ExitOnMouseMove { get; set; }
+
     public HotKeySettings ToggleShadeHotKey { get; set; } = HotKeySettings.DefaultToggle();
 
     public HotKeySettings QuickDelayHotKey { get; set; } = HotKeySettings.DefaultDelayMenu();
@@ -31,6 +33,7 @@ internal sealed class ScreenShadeSettings
             DisplayDeviceNames = [.. NormalizeDisplayDeviceNames(DisplayDeviceNames)],
             DelaySeconds = Math.Clamp(DelaySeconds, 0, 3600),
             DimHardwareBrightness = DimHardwareBrightness,
+            ExitOnMouseMove = ExitOnMouseMove,
             ToggleShadeHotKey = toggleShadeHotKey,
             QuickDelayHotKey = quickDelayHotKey
         };
