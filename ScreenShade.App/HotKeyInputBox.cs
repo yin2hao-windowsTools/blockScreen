@@ -23,7 +23,26 @@ internal sealed class HotKeyInputBox : TextBox
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        var hotKey = HotKeySettings.FromKeyData(e.KeyData);
+        CaptureHotKey(e.KeyData);
+
+        e.Handled = true;
+        e.SuppressKeyPress = true;
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (ShouldLetFormHandleKey(keyData))
+        {
+            return base.ProcessCmdKey(ref msg, keyData);
+        }
+
+        CaptureHotKey(keyData);
+        return true;
+    }
+
+    private void CaptureHotKey(Keys keyData)
+    {
+        var hotKey = HotKeySettings.FromKeyData(keyData);
         if (hotKey.IsValid)
         {
             HotKey = hotKey;
@@ -33,9 +52,13 @@ internal sealed class HotKeyInputBox : TextBox
             Text = "请按 Ctrl/Alt/Shift + 按键";
             SelectAll();
         }
+    }
 
-        e.Handled = true;
-        e.SuppressKeyPress = true;
+    private static bool ShouldLetFormHandleKey(Keys keyData)
+    {
+        var keyCode = keyData & Keys.KeyCode;
+        var modifiers = keyData & Keys.Modifiers;
+        return keyCode == Keys.Tab && (modifiers == Keys.None || modifiers == Keys.Shift);
     }
 
     protected override void OnEnter(EventArgs e)
