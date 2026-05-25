@@ -1,23 +1,43 @@
-# A1 Screen Shade
+# blockScreen
 
-A1 Screen Shade is a small Windows tray app that can place a black overlay across every connected screen and lower display brightness to the minimum supported level. Click anywhere on the overlay to exit shade mode and restore the previous brightness.
+blockScreen 是一个 Windows 托盘工具，可以在选定显示器上覆盖黑色遮罩，并尽量将支持的硬件亮度降到最低。点击遮罩或按任意键即可退出遮罩模式，并恢复之前的亮度。
 
-## Usage
+## 功能
 
-- Start the app from `ScreenShade.App`.
-- Press `Ctrl+Alt+B` to toggle shade mode.
-- Press `Ctrl+Alt+T` to open the quick timed shade menu, enter a delay, and start the countdown.
-- Double-click the tray icon to open the management page.
-- Choose which displays should be covered.
-- Use `启动遮罩` for immediate shade, or set `延时启动(秒)` and use `延时启动遮罩` for a countdown start.
-- Change both hotkeys in the management page if the defaults conflict with another app.
-- Or use the tray icon menu and choose `启动遮罩`.
-- Use the tray icon `关于` menu to open the developer homepage, view license information, and check GitHub Releases for updates. When a newer release is available, the app can download the update package and replace the old version after exiting.
-- Click anywhere on the black screen or press any key to leave shade mode.
-- Enable `鼠标移动时退出遮罩` in the management page if you also want cursor movement to dismiss the overlay.
+- 支持选择一个或多个显示器启动遮罩。
+- 支持立即启动遮罩，也支持设置延时后自动启动。
+- 可选“同时降低硬件亮度”，遮罩关闭后会尝试恢复原亮度。
+- 可选“鼠标移动时退出遮罩”。
+- 支持开机自启动。
+- 支持自定义“切换黑屏”和“快速定时菜单”快捷键。
+- 在“关于”页中可打开开发者主页、项目主页、查看许可证并检查 GitHub Release 更新。
+- 检查到新版本时，可下载更新包并在程序退出后自动覆盖旧版本。
 
-Brightness control is best effort: Windows exposes brightness controls differently for internal and external monitors. The overlay always appears even if a monitor refuses hardware brightness changes.
+## 使用
 
-## Install
+1. 启动程序后，blockScreen 会出现在系统托盘。
+2. 双击托盘图标打开管理窗口。
+3. 在顶部导航中切换“管理”和“关于”。
+4. 在“管理”页选择需要遮罩的显示器。
+5. 点击“启动遮罩”立即进入遮罩模式。
+6. 设置“延时启动(秒)”后点击“延时启动遮罩”，可在倒计时结束后进入遮罩模式。
+7. 默认快捷键：
+   - `Ctrl+Alt+B`：切换黑屏
+   - `Ctrl+Alt+T`：打开快速定时菜单
+8. 如果快捷键与其他程序冲突，可在管理窗口中重新设置并保存。
+9. 也可以右键托盘图标，通过菜单启动遮罩、打开快速定时菜单、检查更新或退出程序。
+10. 点击遮罩、按任意键，或在启用选项后移动鼠标，即可退出遮罩模式。
 
-Release packages include a single EXE, a portable ZIP, and an MSI installer. The MSI installer creates Start Menu and desktop shortcuts.
+## 安装
+
+Release 提供以下 Windows 包：
+
+- 单文件 EXE：下载后可直接运行。
+- 便携 ZIP：解压后运行 `blockScreen.exe`，请保持文件夹内文件完整。
+- MSI 安装包：会创建开始菜单和桌面快捷方式。
+
+## 说明
+
+硬件亮度控制是尽力而为。不同显示器和显卡驱动暴露的亮度接口并不一致，即使某些显示器无法降低硬件亮度，黑色遮罩仍会正常显示。
+
+当前仓库未包含许可证文件。使用、分发或修改前请先确认作者授权。
