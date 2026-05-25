@@ -41,7 +41,7 @@ jobs:
         if: steps.build.outputs.is_prerelease == 'true'
         uses: actions/upload-artifact@v7
         with:
-          name: A1ScreenShade-${{ steps.build.outputs.package_version }}-win-x64
+          name: blockScreen-${{ steps.build.outputs.package_version }}-win-x64
           path: |
             artifacts/packages/*.exe
             artifacts/packages/*.msi
@@ -58,5 +58,5 @@ jobs:
           $assets = Get-ChildItem artifacts/packages -File | Where-Object { $_.Extension -in '.exe', '.msi', '.zip' } | ForEach-Object { $_.FullName }
           gh release create $env:RELEASE_TAG $assets `
             --verify-tag `
-            --title 'A1 Screen Shade ${{ steps.build.outputs.package_version }}' `
+            --title 'blockScreen ${{ steps.build.outputs.package_version }}' `
             --notes "Automated build for $env:RELEASE_TAG."

@@ -5,7 +5,7 @@ namespace ScreenShade.App;
 
 internal static class AppInfo
 {
-    public const string Name = "A1 Screen Shade";
+    public const string Name = "blockScreen";
     public const string DeveloperName = "yin2hao-windowsTools";
     public const string DeveloperHomeUrl = "https://github.com/yin2hao-windowsTools";
     public const string RepositoryUrl = "https://github.com/yin2hao-windowsTools/blockScreen";

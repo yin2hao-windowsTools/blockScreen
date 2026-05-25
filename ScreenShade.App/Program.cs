@@ -2,7 +2,7 @@ namespace ScreenShade.App;
 
 static class Program
 {
-    private const string MutexName = "A1ScreenShade.SingleInstance";
+    private const string MutexName = "blockScreen.SingleInstance";
 
     [STAThread]
     static void Main()

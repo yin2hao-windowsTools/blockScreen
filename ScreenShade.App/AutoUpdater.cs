@@ -74,7 +74,7 @@ internal static class AutoUpdater
         var versionPart = string.IsNullOrWhiteSpace(AppInfo.CurrentVersion) ? "update" : AppInfo.CurrentVersion;
         var workingDirectory = Path.Combine(
             Path.GetTempPath(),
-            "A1ScreenShade",
+            AppInfo.Name,
             "updates",
             $"{versionPart}-{package.Kind}-{Guid.NewGuid():N}");
         Directory.CreateDirectory(workingDirectory);
@@ -190,7 +190,7 @@ internal static class AutoUpdater
             return false;
         }
 
-        var testPath = Path.Combine(directory, $".a1screenshade-update-test-{Guid.NewGuid():N}.tmp");
+        var testPath = Path.Combine(directory, $".blockscreen-update-test-{Guid.NewGuid():N}.tmp");
         try
         {
             File.WriteAllText(testPath, string.Empty);
@@ -211,7 +211,7 @@ internal static class AutoUpdater
     private static HttpClient CreateClient()
     {
         var client = new HttpClient();
-        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("A1ScreenShade", AppInfo.CurrentVersion));
+        client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue(AppInfo.Name, AppInfo.CurrentVersion));
         return client;
     }
 
@@ -238,7 +238,7 @@ function Show-Failure {
     param([string]$Message)
 
     Add-Type -AssemblyName System.Windows.Forms
-    [System.Windows.Forms.MessageBox]::Show("Automatic update failed: $Message", "A1 Screen Shade", 'OK', 'Warning') | Out-Null
+    [System.Windows.Forms.MessageBox]::Show("Automatic update failed: $Message", "blockScreen", 'OK', 'Warning') | Out-Null
 }
 
 try {

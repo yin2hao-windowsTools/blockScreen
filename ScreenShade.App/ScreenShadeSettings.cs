@@ -80,9 +80,15 @@ internal sealed class SettingsStore
 
     private static readonly string SettingsDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+        AppInfo.Name);
+
+    private static readonly string LegacySettingsDirectory = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "A1 Screen Shade");
 
     private static readonly string SettingsFilePath = Path.Combine(SettingsDirectory, "settings.json");
+
+    private static readonly string LegacySettingsFilePath = Path.Combine(LegacySettingsDirectory, "settings.json");
 
     public SettingsStore()
     {
@@ -104,14 +110,18 @@ internal sealed class SettingsStore
 
     private static ScreenShadeSettings Load()
     {
-        if (!File.Exists(SettingsFilePath))
+        var settingsFilePath = File.Exists(SettingsFilePath)
+            ? SettingsFilePath
+            : LegacySettingsFilePath;
+
+        if (!File.Exists(settingsFilePath))
         {
             return new ScreenShadeSettings();
         }
 
         try
         {
-            var json = File.ReadAllText(SettingsFilePath);
+            var json = File.ReadAllText(settingsFilePath);
             var settings = JsonSerializer.Deserialize<ScreenShadeSettings>(json, SerializerOptions);
             return settings?.Clone() ?? new ScreenShadeSettings();
         }

@@ -30,7 +30,7 @@ internal sealed class ManagementForm : Form
         MaximizeBox = false;
         MinimumSize = new Size(760, 560);
         StartPosition = FormStartPosition.CenterScreen;
-        Text = "A1 Screen Shade 管理";
+        Text = $"{AppInfo.Name} 管理";
 
         BuildLayout();
         LoadSettings();

@@ -90,42 +90,42 @@ function New-InstallerSource {
     $content = @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
-    Name="A1 Screen Shade"
-    Manufacturer="A1"
+    Name="blockScreen"
+    Manufacturer="yin2hao-windowsTools"
     Version="$escapedProductVersion"
     UpgradeCode="{32AA0A45-07FA-45BB-A8A5-1D569217803C}"
     Scope="perMachine">
-    <MajorUpgrade DowngradeErrorMessage="A newer version of A1 Screen Shade is already installed." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of blockScreen is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Feature Id="MainFeature" Title="A1 Screen Shade" Level="1">
+    <Feature Id="MainFeature" Title="blockScreen" Level="1">
       <ComponentRef Id="AppExecutable" />
       <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="DesktopShortcut" />
     </Feature>
 
     <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="INSTALLFOLDER" Name="A1 Screen Shade">
+      <Directory Id="INSTALLFOLDER" Name="blockScreen">
         <Component Id="AppExecutable" Guid="{8A53D80D-705A-4F06-9757-CF5642415948}">
-          <File Id="A1ScreenShadeExe" Source="$escapedSourceExePath" KeyPath="yes" />
+          <File Id="blockScreenExe" Source="$escapedSourceExePath" KeyPath="yes" />
         </Component>
       </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="ApplicationProgramsFolder" Name="A1 Screen Shade">
+      <Directory Id="ApplicationProgramsFolder" Name="blockScreen">
         <Component Id="StartMenuShortcut" Guid="{96FCD50B-AE4F-490D-BD14-91644735BDFB}">
-          <Shortcut Id="ApplicationStartMenuShortcut" Name="A1 Screen Shade" Target="[INSTALLFOLDER]A1ScreenShade.exe" WorkingDirectory="INSTALLFOLDER" />
+          <Shortcut Id="ApplicationStartMenuShortcut" Name="blockScreen" Target="[INSTALLFOLDER]blockScreen.exe" WorkingDirectory="INSTALLFOLDER" />
           <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
-          <RegistryValue Root="HKCU" Key="Software\A1 Screen Shade" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
+          <RegistryValue Root="HKCU" Key="Software\blockScreen" Name="Installed" Type="integer" Value="1" KeyPath="yes" />
         </Component>
       </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="DesktopFolder">
       <Component Id="DesktopShortcut" Guid="{C9051A3E-3BB4-4A6B-9D5E-30E5A6E2AA5A}">
-        <Shortcut Id="ApplicationDesktopShortcut" Name="A1 Screen Shade" Target="[INSTALLFOLDER]A1ScreenShade.exe" WorkingDirectory="INSTALLFOLDER" />
-        <RegistryValue Root="HKCU" Key="Software\A1 Screen Shade" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
+        <Shortcut Id="ApplicationDesktopShortcut" Name="blockScreen" Target="[INSTALLFOLDER]blockScreen.exe" WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKCU" Key="Software\blockScreen" Name="DesktopShortcut" Type="integer" Value="1" KeyPath="yes" />
       </Component>
     </StandardDirectory>
   </Package>
@@ -161,7 +161,7 @@ $portablePublishRoot = Join-Path $publishRoot 'portable'
 New-Item -ItemType Directory -Path $singleExePublishRoot, $portablePublishRoot, $packageRoot, $wixRoot | Out-Null
 
 $commonVersionProperties = @(
-    '/p:AssemblyName=A1ScreenShade',
+    '/p:AssemblyName=blockScreen',
     "/p:Version=$($version.PackageVersion)",
     "/p:PackageVersion=$($version.PackageVersion)",
     "/p:AssemblyVersion=$($version.NumericVersion)",
@@ -192,8 +192,8 @@ Invoke-DotNet -Arguments ($commonPublishArguments + @(
     '/p:EnableCompressionInSingleFile=true'
 ))
 
-$assetPrefix = "A1ScreenShade-$($version.PackageVersion)-$Runtime"
-$singleExeSource = Join-Path $singleExePublishRoot 'A1ScreenShade.exe'
+$assetPrefix = "blockScreen-$($version.PackageVersion)-$Runtime"
+$singleExeSource = Join-Path $singleExePublishRoot 'blockScreen.exe'
 $exeAssetPath = Join-Path $packageRoot "$assetPrefix.exe"
 
 if (-not (Test-Path -LiteralPath $singleExeSource)) {
@@ -210,9 +210,9 @@ Invoke-DotNet -Arguments ($commonPublishArguments + @(
 
 $portableReadmePath = Join-Path $portablePublishRoot 'PORTABLE.txt'
 Set-Content -LiteralPath $portableReadmePath -Encoding ASCII -Value @(
-    'A1 Screen Shade portable package',
+    'blockScreen portable package',
     '',
-    'Run A1ScreenShade.exe from this folder.',
+    'Run blockScreen.exe from this folder.',
     'Keep all files together.',
     'This package does not install services, shortcuts, startup items, registry entries, or files outside this directory.'
 )
@@ -220,7 +220,7 @@ Set-Content -LiteralPath $portableReadmePath -Encoding ASCII -Value @(
 $portableZipPath = Join-Path $packageRoot "$assetPrefix-portable.zip"
 Compress-Archive -Path (Join-Path $portablePublishRoot '*') -DestinationPath $portableZipPath -Force
 
-$installerSourcePath = Join-Path $wixRoot 'A1ScreenShade.wxs'
+$installerSourcePath = Join-Path $wixRoot 'blockScreen.wxs'
 $msiAssetPath = Join-Path $packageRoot "$assetPrefix.msi"
 New-InstallerSource -Path $installerSourcePath -SourceExePath $singleExeSource -ProductVersion $version.NumericVersion
 Invoke-DotNet -Arguments @('tool', 'run', 'wix', '--', 'build', $installerSourcePath, '-out', $msiAssetPath, '-pdbtype', 'none')

@@ -5,7 +5,7 @@ namespace ScreenShade.App;
 internal static class StartupRegistration
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "A1 Screen Shade";
+    private const string ValueName = AppInfo.Name;
 
     public static bool IsEnabled()
     {
