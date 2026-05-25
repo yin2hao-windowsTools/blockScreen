@@ -12,6 +12,7 @@ A1 Screen Shade is a small Windows tray app that can place a black overlay acros
 - Use `启动遮罩` for immediate shade, or set `延时启动(秒)` and use `延时启动遮罩` for a countdown start.
 - Change both hotkeys in the management page if the defaults conflict with another app.
 - Or use the tray icon menu and choose `启动遮罩`.
+- Use the tray icon `关于` menu to open the developer homepage, view license information, and check GitHub Releases for updates. When a newer release is available, the app can download the update package and replace the old version after exiting.
 - Click anywhere on the black screen or press any key to leave shade mode.
 - Enable `鼠标移动时退出遮罩` in the management page if you also want cursor movement to dismiss the overlay.
 
