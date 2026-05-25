@@ -2,14 +2,8 @@ namespace ScreenShade.App;
 
 internal sealed class AboutForm : Form
 {
-    private readonly Button _checkUpdateButton = new();
-    private readonly Label _updateStatusLabel = new();
-    private readonly Bitmap _iconBitmap;
-
     public AboutForm(Icon icon)
     {
-        _iconBitmap = icon.ToBitmap();
-
         AutoScaleDimensions = new SizeF(9F, 20F);
         AutoScaleMode = AutoScaleMode.Font;
         ClientSize = new Size(560, 430);
@@ -22,8 +16,32 @@ internal sealed class AboutForm : Form
         StartPosition = FormStartPosition.CenterParent;
         Text = $"关于 {AppInfo.Name}";
 
+        var aboutPanel = new AboutPanel(icon, showCloseButton: true)
+        {
+            Dock = DockStyle.Fill
+        };
+        aboutPanel.CloseRequested += (_, _) => Close();
+        Controls.Add(aboutPanel);
+    }
+}
+
+internal sealed class AboutPanel : UserControl
+{
+    private readonly Button _checkUpdateButton = new();
+    private readonly Label _updateStatusLabel = new();
+    private readonly Bitmap _iconBitmap;
+    private readonly bool _showCloseButton;
+
+    public AboutPanel(Icon icon, bool showCloseButton = false)
+    {
+        _iconBitmap = icon.ToBitmap();
+        _showCloseButton = showCloseButton;
+        Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+        Dock = DockStyle.Fill;
         BuildLayout();
     }
+
+    public event EventHandler? CloseRequested;
 
     protected override void Dispose(bool disposing)
     {
@@ -171,14 +189,17 @@ internal sealed class AboutForm : Form
             WrapContents = false
         };
 
-        var closeButton = new Button
+        if (_showCloseButton)
         {
-            MinimumSize = new Size(92, 38),
-            Text = "关闭",
-            UseVisualStyleBackColor = true
-        };
-        closeButton.Click += (_, _) => Close();
-        panel.Controls.Add(closeButton);
+            var closeButton = new Button
+            {
+                MinimumSize = new Size(92, 38),
+                Text = "关闭",
+                UseVisualStyleBackColor = true
+            };
+            closeButton.Click += (_, _) => CloseRequested?.Invoke(this, EventArgs.Empty);
+            panel.Controls.Add(closeButton);
+        }
 
         _checkUpdateButton.MinimumSize = new Size(112, 38);
         _checkUpdateButton.Text = "检查更新";
@@ -243,7 +264,7 @@ internal sealed class AboutForm : Form
         catch (Exception ex)
         {
             _updateStatusLabel.Text = "检查更新失败。";
-            MessageBox.Show(this, $"检查更新失败：{ex.Message}", Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, $"检查更新失败：{ex.Message}", $"关于 {AppInfo.Name}", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         finally
         {

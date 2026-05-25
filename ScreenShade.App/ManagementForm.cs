@@ -15,7 +15,6 @@ internal sealed class ManagementForm : Form
     private readonly Button _startShadeButton = new();
     private readonly Button _delayShadeButton = new();
     private readonly Icon _icon;
-    private AboutForm? _aboutForm;
 
     public ManagementForm(SettingsStore settingsStore, OverlayController overlayController, Icon icon)
     {
@@ -44,7 +43,6 @@ internal sealed class ManagementForm : Form
     {
         if (disposing)
         {
-            _aboutForm?.Close();
             _overlayController.StateChanged -= OverlayController_StateChanged;
         }
 
@@ -53,6 +51,21 @@ internal sealed class ManagementForm : Form
 
     private void BuildLayout()
     {
+        var tabs = new TabControl
+        {
+            Dock = DockStyle.Fill
+        };
+        var managementPage = new TabPage("管理")
+        {
+            Padding = new Padding(0),
+            UseVisualStyleBackColor = true
+        };
+        var aboutPage = new TabPage("关于")
+        {
+            Padding = new Padding(0),
+            UseVisualStyleBackColor = true
+        };
+
         var root = new TableLayoutPanel
         {
             ColumnCount = 1,
@@ -199,15 +212,6 @@ internal sealed class ManagementForm : Form
         closeButton.Click += (_, _) => Close();
         buttonPanel.Controls.Add(closeButton);
 
-        var aboutButton = new Button
-        {
-            MinimumSize = new Size(92, 38),
-            Text = "关于",
-            UseVisualStyleBackColor = true
-        };
-        aboutButton.Click += (_, _) => ShowAboutForm();
-        buttonPanel.Controls.Add(aboutButton);
-
         var saveButton = new Button
         {
             MinimumSize = new Size(92, 38),
@@ -230,7 +234,11 @@ internal sealed class ManagementForm : Form
         buttonPanel.Controls.Add(_startShadeButton);
 
         root.Controls.Add(buttonPanel, 0, 4);
-        Controls.Add(root);
+        managementPage.Controls.Add(root);
+        aboutPage.Controls.Add(new AboutPanel(_icon));
+        tabs.TabPages.Add(managementPage);
+        tabs.TabPages.Add(aboutPage);
+        Controls.Add(tabs);
     }
 
     private void LoadSettings()
@@ -323,22 +331,6 @@ internal sealed class ManagementForm : Form
         }
 
         _overlayController.ShowShadeWithDelay(settings);
-    }
-
-    private void ShowAboutForm()
-    {
-        if (_aboutForm is null || _aboutForm.IsDisposed)
-        {
-            _aboutForm = new AboutForm(_icon);
-            _aboutForm.FormClosed += (_, _) => _aboutForm = null;
-        }
-
-        if (!_aboutForm.Visible)
-        {
-            _aboutForm.Show(this);
-        }
-
-        _aboutForm.Activate();
     }
 
     private void PersistSettings(ScreenShadeSettings settings)
