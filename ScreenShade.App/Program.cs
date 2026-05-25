@@ -10,7 +10,7 @@ static class Program
         using var mutex = new Mutex(true, MutexName, out var createdNew);
         if (!createdNew)
         {
-            MessageBox.Show("A1 Screen Shade 已在运行。", "A1 Screen Shade", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show($"{AppInfo.Name} 已在运行。", AppInfo.Name, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
