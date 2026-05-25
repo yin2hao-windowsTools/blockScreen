@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v5
@@ -33,6 +35,12 @@ jobs:
           ./scripts/build-release.ps1 -Tag $env:RELEASE_TAG
 
           $metadata = Get-Content artifacts/release-metadata.json -Raw | ConvertFrom-Json
+          ./scripts/new-release-notes.ps1 `
+            -Tag $env:RELEASE_TAG `
+            -Repository '${{ github.repository }}' `
+            -PackageRoot artifacts/packages `
+            -OutputPath artifacts/release-notes.md
+
           "numeric_version=$($metadata.numericVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "package_version=$($metadata.packageVersion)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "is_prerelease=$($metadata.isPrerelease.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
@@ -59,4 +67,4 @@ jobs:
           gh release create $env:RELEASE_TAG $assets `
             --verify-tag `
             --title 'blockScreen ${{ steps.build.outputs.package_version }}' `
-            --notes "Automated build for $env:RELEASE_TAG."
+            --notes-file artifacts/release-notes.md
