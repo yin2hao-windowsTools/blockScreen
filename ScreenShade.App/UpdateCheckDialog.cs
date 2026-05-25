@@ -7,7 +7,7 @@ internal static class UpdateCheckDialog
         try
         {
             var result = await UpdateChecker.CheckLatestReleaseAsync();
-            ShowResult(owner, result);
+            await ShowResultAsync(owner, result);
         }
         catch (Exception ex)
         {
@@ -30,7 +30,10 @@ internal static class UpdateCheckDialog
         return "当前已是最新版本。";
     }
 
-    public static void ShowResult(IWin32Window? owner, UpdateCheckResult result)
+    public static async Task ShowResultAsync(
+        IWin32Window? owner,
+        UpdateCheckResult result,
+        IProgress<string>? progress = null)
     {
         if (result.ReleaseNotFound)
         {
@@ -51,10 +54,30 @@ internal static class UpdateCheckDialog
                 message += $"\n发布时间：{result.PublishedAt.Value.LocalDateTime:yyyy-MM-dd HH:mm}";
             }
 
-            message += "\n\n是否打开发布页面？";
+            var package = AutoUpdater.SelectPackage(result);
+            if (package is null)
+            {
+                message += "\n\n未找到可自动安装的更新包，是否打开发布页面？";
 
-            if (ShowMessage(owner, message, "检查更新", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes
-                && !string.IsNullOrWhiteSpace(result.ReleaseUrl))
+                if (ShowMessage(owner, message, "检查更新", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes
+                    && !string.IsNullOrWhiteSpace(result.ReleaseUrl))
+                {
+                    ExternalLink.Open(result.ReleaseUrl, owner);
+                }
+
+                return;
+            }
+
+            message += $"\n更新包：{package.Asset.Name}";
+            message += $"\n更新方式：{package.Description}";
+            message += "\n\n选择“是”自动下载并覆盖旧版本；选择“否”打开发布页面。";
+
+            var choice = ShowMessage(owner, message, "检查更新", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Information);
+            if (choice == DialogResult.Yes)
+            {
+                await StartAutoUpdateAsync(owner, package, progress);
+            }
+            else if (choice == DialogResult.No && !string.IsNullOrWhiteSpace(result.ReleaseUrl))
             {
                 ExternalLink.Open(result.ReleaseUrl, owner);
             }
@@ -68,6 +91,29 @@ internal static class UpdateCheckDialog
             "检查更新",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
+    }
+
+    private static async Task StartAutoUpdateAsync(
+        IWin32Window? owner,
+        AutoUpdatePackage package,
+        IProgress<string>? progress)
+    {
+        try
+        {
+            await AutoUpdater.DownloadAndApplyAsync(package, progress);
+            ShowMessage(
+                owner,
+                "更新包已下载。程序将退出并覆盖旧版本，完成后会自动重新启动。",
+                "自动更新",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            Application.Exit();
+        }
+        catch (Exception ex)
+        {
+            progress?.Report("自动更新失败。");
+            ShowMessage(owner, $"自动更新失败：{ex.Message}", "自动更新", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
     }
 
     private static DialogResult ShowMessage(

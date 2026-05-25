@@ -57,7 +57,7 @@ internal sealed class AboutForm : Form
         _updateStatusLabel.AutoEllipsis = true;
         _updateStatusLabel.Dock = DockStyle.Fill;
         _updateStatusLabel.ForeColor = SystemColors.GrayText;
-        _updateStatusLabel.Text = "可检查 GitHub Release 是否有新版本。";
+        _updateStatusLabel.Text = "发现新版本时可自动下载并覆盖旧版本。";
         _updateStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
         root.Controls.Add(_updateStatusLabel, 0, 3);
 
@@ -235,7 +235,10 @@ internal sealed class AboutForm : Form
         {
             var result = await UpdateChecker.CheckLatestReleaseAsync();
             _updateStatusLabel.Text = UpdateCheckDialog.GetStatusText(result);
-            UpdateCheckDialog.ShowResult(this, result);
+            await UpdateCheckDialog.ShowResultAsync(
+                this,
+                result,
+                new Progress<string>(message => _updateStatusLabel.Text = message));
         }
         catch (Exception ex)
         {
