@@ -26,6 +26,7 @@ internal static partial class UpdateChecker
         var releaseName = GetString(root, "name");
         var releaseUrl = GetString(root, "html_url") ?? AppInfo.ReleasesUrl;
         var publishedAt = GetDateTime(root, "published_at");
+        var assets = GetAssets(root);
 
         if (string.IsNullOrWhiteSpace(tagName))
         {
@@ -43,6 +44,7 @@ internal static partial class UpdateChecker
             releaseName,
             releaseUrl,
             publishedAt,
+            assets,
             isNewer,
             false);
     }
@@ -61,6 +63,33 @@ internal static partial class UpdateChecker
             && DateTimeOffset.TryParse(property.GetString(), out var value)
                 ? value
                 : null;
+    }
+
+    private static IReadOnlyList<ReleaseAsset> GetAssets(JsonElement element)
+    {
+        if (!element.TryGetProperty("assets", out var assetsElement) || assetsElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var assets = new List<ReleaseAsset>();
+        foreach (var assetElement in assetsElement.EnumerateArray())
+        {
+            var name = GetString(assetElement, "name");
+            var downloadUrl = GetString(assetElement, "browser_download_url");
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(downloadUrl))
+            {
+                continue;
+            }
+
+            var size = assetElement.TryGetProperty("size", out var sizeElement) && sizeElement.TryGetInt64(out var value)
+                ? value
+                : 0;
+
+            assets.Add(new ReleaseAsset(name, downloadUrl, size));
+        }
+
+        return assets;
     }
 
     private static HttpClient CreateClient()
@@ -101,9 +130,16 @@ internal static partial class UpdateChecker
 
             version = new ReleaseVersion(
                 int.Parse(match.Groups["major"].Value),
-                int.Parse(match.Groups["minor"].Value),
-                int.Parse(match.Groups["patch"].Value));
+                ParseOptionalVersionPart(match.Groups["minor"]),
+                ParseOptionalVersionPart(match.Groups["patch"]));
             return true;
+        }
+
+        private static int ParseOptionalVersionPart(Group group)
+        {
+            return group.Success && !string.IsNullOrEmpty(group.Value)
+                ? int.Parse(group.Value)
+                : 0;
         }
 
         [GeneratedRegex(@"^v?(?<major>\d+)(?:\.(?<minor>\d+))?(?:\.(?<patch>\d+))?(?:[-+].*)?$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -111,17 +147,23 @@ internal static partial class UpdateChecker
     }
 }
 
+internal sealed record ReleaseAsset(
+    string Name,
+    string DownloadUrl,
+    long Size);
+
 internal sealed record UpdateCheckResult(
     string CurrentVersion,
     string? LatestVersion,
     string? ReleaseName,
     string? ReleaseUrl,
     DateTimeOffset? PublishedAt,
+    IReadOnlyList<ReleaseAsset> Assets,
     bool IsUpdateAvailable,
     bool ReleaseNotFound)
 {
     public static UpdateCheckResult NoRelease(string currentVersion)
     {
-        return new UpdateCheckResult(currentVersion, null, null, null, null, false, true);
+        return new UpdateCheckResult(currentVersion, null, null, null, null, [], false, true);
     }
 }
