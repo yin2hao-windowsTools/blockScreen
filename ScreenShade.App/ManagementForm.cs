@@ -14,11 +14,14 @@ internal sealed class ManagementForm : Form
     private readonly Label _stateLabel = new();
     private readonly Button _startShadeButton = new();
     private readonly Button _delayShadeButton = new();
+    private readonly Icon _icon;
+    private AboutForm? _aboutForm;
 
     public ManagementForm(SettingsStore settingsStore, OverlayController overlayController, Icon icon)
     {
         _settingsStore = settingsStore;
         _overlayController = overlayController;
+        _icon = icon;
 
         AutoScaleDimensions = new SizeF(9F, 20F);
         AutoScaleMode = AutoScaleMode.Font;
@@ -41,6 +44,7 @@ internal sealed class ManagementForm : Form
     {
         if (disposing)
         {
+            _aboutForm?.Close();
             _overlayController.StateChanged -= OverlayController_StateChanged;
         }
 
@@ -195,6 +199,15 @@ internal sealed class ManagementForm : Form
         closeButton.Click += (_, _) => Close();
         buttonPanel.Controls.Add(closeButton);
 
+        var aboutButton = new Button
+        {
+            MinimumSize = new Size(92, 38),
+            Text = "关于",
+            UseVisualStyleBackColor = true
+        };
+        aboutButton.Click += (_, _) => ShowAboutForm();
+        buttonPanel.Controls.Add(aboutButton);
+
         var saveButton = new Button
         {
             MinimumSize = new Size(92, 38),
@@ -310,6 +323,22 @@ internal sealed class ManagementForm : Form
         }
 
         _overlayController.ShowShadeWithDelay(settings);
+    }
+
+    private void ShowAboutForm()
+    {
+        if (_aboutForm is null || _aboutForm.IsDisposed)
+        {
+            _aboutForm = new AboutForm(_icon);
+            _aboutForm.FormClosed += (_, _) => _aboutForm = null;
+        }
+
+        if (!_aboutForm.Visible)
+        {
+            _aboutForm.Show(this);
+        }
+
+        _aboutForm.Activate();
     }
 
     private void PersistSettings(ScreenShadeSettings settings)
