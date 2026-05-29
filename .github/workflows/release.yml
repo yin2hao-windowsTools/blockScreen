@@ -26,6 +26,11 @@ jobs:
             8.0.x
             6.0.x
 
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: '1.26.x'
+
       - name: Build release assets
         id: build
         shell: pwsh
