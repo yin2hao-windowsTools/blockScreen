@@ -12,6 +12,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Assets\AppIcon.ico" LogicalName="AppIcon.ico" />
+    <EmbeddedResource Include="..\LICENSE" LogicalName="LICENSE" />
   </ItemGroup>
 
   <ItemGroup>

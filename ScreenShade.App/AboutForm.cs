@@ -145,7 +145,7 @@ internal sealed class AboutPanel : UserControl
 
         AddInfoRow(panel, 0, "开发者", CreateLink(AppInfo.DeveloperName, AppInfo.DeveloperHomeUrl));
         AddInfoRow(panel, 1, "项目主页", CreateLink(AppInfo.RepositoryUrl, AppInfo.RepositoryUrl));
-        AddInfoRow(panel, 2, "许可证", new Label
+        AddInfoRow(panel, 2, "开源许可证", new Label
         {
             AutoEllipsis = true,
             Dock = DockStyle.Fill,
@@ -161,7 +161,7 @@ internal sealed class AboutPanel : UserControl
         var group = new GroupBox
         {
             Dock = DockStyle.Fill,
-            Text = "许可证"
+            Text = "开源许可证"
         };
 
         var licenseText = new TextBox

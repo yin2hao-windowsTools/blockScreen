@@ -60,7 +60,7 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
         menu.DropDownItems.Add("开发者主页", null, (_, _) => ExternalLink.Open(AppInfo.DeveloperHomeUrl));
         menu.DropDownItems.Add("项目主页", null, (_, _) => ExternalLink.Open(AppInfo.RepositoryUrl));
         menu.DropDownItems.Add("检查更新", null, async (_, _) => await UpdateCheckDialog.CheckAndShowAsync());
-        menu.DropDownItems.Add("许可证", null, (_, _) => ShowLicenseInfo());
+        menu.DropDownItems.Add("开源许可证", null, (_, _) => ShowLicenseInfo());
         return menu;
     }
 
@@ -104,7 +104,7 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
     {
         MessageBox.Show(
             $"{AppInfo.LicenseName}\n\n{AppInfo.LicenseDescription}",
-            "许可证",
+            "开源许可证",
             MessageBoxButtons.OK,
             MessageBoxIcon.Information);
     }

@@ -11,8 +11,10 @@ internal static class AppInfo
     public const string RepositoryUrl = "https://github.com/yin2hao-windowsTools/blockScreen";
     public const string LatestReleaseApiUrl = "https://api.github.com/repos/yin2hao-windowsTools/blockScreen/releases/latest";
     public const string ReleasesUrl = "https://github.com/yin2hao-windowsTools/blockScreen/releases";
-    public const string LicenseName = "未声明许可证";
-    public const string LicenseDescription = "当前仓库未包含许可证文件。使用、分发或修改前请先确认作者授权。";
+    public const string LicenseName = "MIT License";
+
+    public static string LicenseDescription => ReadEmbeddedText("LICENSE")
+        ?? "MIT License\n\nCopyright (c) 2026 yin2hao-windowsTools";
 
     public static string LauncherExecutablePath
     {
@@ -51,8 +53,26 @@ internal static class AppInfo
                 return informationalVersion;
             }
 
-            var fileVersion = FileVersionInfo.GetVersionInfo(assembly.Location).ProductVersion;
-            return string.IsNullOrWhiteSpace(fileVersion) ? "0.0.0" : fileVersion;
+            var fileVersion = FileVersionInfo.GetVersionInfo(Application.ExecutablePath).ProductVersion;
+            if (!string.IsNullOrWhiteSpace(fileVersion))
+            {
+                return fileVersion;
+            }
+
+            return assembly.GetName().Version?.ToString(3) ?? "0.0.0";
         }
+    }
+
+    private static string? ReadEmbeddedText(string resourceName)
+    {
+        var assembly = typeof(AppInfo).Assembly;
+        using var stream = assembly.GetManifestResourceStream(resourceName);
+        if (stream is null)
+        {
+            return null;
+        }
+
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 }
