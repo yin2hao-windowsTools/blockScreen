@@ -14,6 +14,29 @@ internal static class AppInfo
     public const string LicenseName = "未声明许可证";
     public const string LicenseDescription = "当前仓库未包含许可证文件。使用、分发或修改前请先确认作者授权。";
 
+    public static string LauncherExecutablePath
+    {
+        get
+        {
+            var currentExecutablePath = Application.ExecutablePath;
+            var currentDirectory = Path.GetDirectoryName(currentExecutablePath);
+            var parentDirectory = string.IsNullOrWhiteSpace(currentDirectory)
+                ? null
+                : Directory.GetParent(currentDirectory)?.FullName;
+
+            if (!string.IsNullOrWhiteSpace(parentDirectory))
+            {
+                var launcherPath = Path.Combine(parentDirectory, $"{Name}.exe");
+                if (File.Exists(launcherPath))
+                {
+                    return launcherPath;
+                }
+            }
+
+            return currentExecutablePath;
+        }
+    }
+
     public static string CurrentVersion
     {
         get

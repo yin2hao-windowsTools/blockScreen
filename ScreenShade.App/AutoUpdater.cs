@@ -13,6 +13,7 @@ internal static class AutoUpdater
     {
         var exeAsset = FindAsset(result, ".exe");
         var msiAsset = FindAsset(result, ".msi");
+        var zipAsset = FindAsset(result, ".zip");
 
         if (IsLikelyInstalledWithMsi())
         {
@@ -21,9 +22,14 @@ internal static class AutoUpdater
                 : ToPackage(msiAsset, AutoUpdatePackageKind.Msi);
         }
 
-        return exeAsset is null
-            ? ToPackage(msiAsset, AutoUpdatePackageKind.Msi)
-            : ToPackage(exeAsset, AutoUpdatePackageKind.Exe);
+        if (zipAsset is not null)
+        {
+            return ToPackage(zipAsset, AutoUpdatePackageKind.Zip);
+        }
+
+        return exeAsset is not null
+            ? ToPackage(exeAsset, AutoUpdatePackageKind.Exe)
+            : ToPackage(msiAsset, AutoUpdatePackageKind.Msi);
     }
 
     public static async Task DownloadAndApplyAsync(
@@ -141,7 +147,7 @@ internal static class AutoUpdater
 
     private static void StartApplyScript(AutoUpdatePackageKind kind, string scriptPath, string packagePath)
     {
-        var targetPath = Application.ExecutablePath;
+        var targetPath = AppInfo.LauncherExecutablePath;
         if (!File.Exists(targetPath))
         {
             throw new InvalidOperationException("无法定位当前程序文件。");
@@ -156,7 +162,7 @@ internal static class AutoUpdater
             "-File",
             QuoteArgument(scriptPath),
             "-Mode",
-            QuoteArgument(kind == AutoUpdatePackageKind.Msi ? "Msi" : "Exe"),
+            QuoteArgument(kind.ToString()),
             "-ProcessId",
             Environment.ProcessId.ToString(CultureInfo.InvariantCulture),
             "-SourcePath",
@@ -218,7 +224,7 @@ internal static class AutoUpdater
     private const string ApplyScript = """
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Exe', 'Msi')]
+    [ValidateSet('Exe', 'Msi', 'Zip')]
     [string]$Mode,
 
     [Parameter(Mandatory = $true)]
@@ -266,6 +272,63 @@ try {
         exit 0
     }
 
+    if ($Mode -eq 'Zip') {
+        $targetDirectory = Split-Path -Parent $TargetPath
+        $extractPath = Join-Path (Split-Path -Parent $SourcePath) "extracted"
+        $newLauncherPath = Join-Path $extractPath (Split-Path -Leaf $TargetPath)
+        $newAppPath = Join-Path $extractPath "app"
+        $targetAppPath = Join-Path $targetDirectory "app"
+        $newPortableReadmePath = Join-Path $extractPath "PORTABLE.txt"
+        $targetPortableReadmePath = Join-Path $targetDirectory "PORTABLE.txt"
+
+        if (Test-Path -LiteralPath $extractPath) {
+            Remove-Item -LiteralPath $extractPath -Recurse -Force
+        }
+
+        Expand-Archive -LiteralPath $SourcePath -DestinationPath $extractPath -Force
+
+        if (-not (Test-Path -LiteralPath $newLauncherPath)) {
+            throw "Portable update package does not contain $(Split-Path -Leaf $TargetPath)."
+        }
+
+        if (-not (Test-Path -LiteralPath $newAppPath)) {
+            throw "Portable update package does not contain app folder."
+        }
+
+        if (Test-Path -LiteralPath $backupPath) {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+        }
+
+        Move-Item -LiteralPath $TargetPath -Destination $backupPath -Force
+
+        try {
+            Copy-Item -LiteralPath $newLauncherPath -Destination $TargetPath -Force
+
+            if (Test-Path -LiteralPath $targetAppPath) {
+                Remove-Item -LiteralPath $targetAppPath -Recurse -Force
+            }
+
+            Copy-Item -LiteralPath $newAppPath -Destination $targetAppPath -Recurse -Force
+
+            if (Test-Path -LiteralPath $newPortableReadmePath) {
+                Copy-Item -LiteralPath $newPortableReadmePath -Destination $targetPortableReadmePath -Force
+            }
+
+            Unblock-File -LiteralPath $TargetPath -ErrorAction SilentlyContinue
+            Start-Process -FilePath $TargetPath
+            Start-Sleep -Seconds 5
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
+            exit 0
+        }
+        catch {
+            if (Test-Path -LiteralPath $backupPath) {
+                Move-Item -LiteralPath $backupPath -Destination $TargetPath -Force -ErrorAction SilentlyContinue
+            }
+
+            throw
+        }
+    }
+
     if (-not (Test-Path -LiteralPath $SourcePath)) {
         throw "Downloaded update package was not found."
     }
@@ -298,7 +361,8 @@ catch {
 internal enum AutoUpdatePackageKind
 {
     Exe,
-    Msi
+    Msi,
+    Zip
 }
 
 internal sealed record AutoUpdatePackage(ReleaseAsset Asset, AutoUpdatePackageKind Kind)
@@ -306,6 +370,7 @@ internal sealed record AutoUpdatePackage(ReleaseAsset Asset, AutoUpdatePackageKi
     public string Description => Kind switch
     {
         AutoUpdatePackageKind.Msi => "下载 MSI 安装包并覆盖安装",
+        AutoUpdatePackageKind.Zip => "下载便携 ZIP 并在退出后覆盖当前文件夹",
         _ => "下载单文件 EXE 并在退出后替换当前程序"
     };
 }

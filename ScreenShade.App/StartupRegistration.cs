@@ -48,11 +48,12 @@ internal static class StartupRegistration
 
         var normalizedCommand = command.Trim();
         return string.Equals(normalizedCommand, BuildCommand(), StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalizedCommand.Trim('"'), AppInfo.LauncherExecutablePath, StringComparison.OrdinalIgnoreCase)
             || string.Equals(normalizedCommand.Trim('"'), Application.ExecutablePath, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string BuildCommand()
     {
-        return $"\"{Application.ExecutablePath}\"";
+        return $"\"{AppInfo.LauncherExecutablePath}\"";
     }
 }
