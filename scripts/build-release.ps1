@@ -55,6 +55,110 @@ function Invoke-DotNet {
     }
 }
 
+function Invoke-Go {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments
+    )
+
+    & go @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "go $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
+    }
+}
+
+function ConvertTo-GoArchitecture {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Runtime
+    )
+
+    switch ($Runtime) {
+        'win-x64' { return 'amd64' }
+        'win-x86' { return '386' }
+        'win-arm64' { return 'arm64' }
+        default {
+            throw "Unsupported runtime '$Runtime'. Expected win-x64, win-x86, or win-arm64."
+        }
+    }
+}
+
+function ConvertTo-DotNetArchitectureLabel {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Runtime
+    )
+
+    switch ($Runtime) {
+        'win-x64' { return 'x64' }
+        'win-x86' { return 'x86' }
+        'win-arm64' { return 'arm64' }
+        default {
+            throw "Unsupported runtime '$Runtime'. Expected win-x64, win-x86, or win-arm64."
+        }
+    }
+}
+
+function Set-EnvironmentVariableForProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [string]$Value
+    )
+
+    if ($null -eq $Value) {
+        Remove-Item -LiteralPath "Env:$Name" -ErrorAction SilentlyContinue
+        return
+    }
+
+    Set-Item -LiteralPath "Env:$Name" -Value $Value
+}
+
+function Invoke-LauncherBuild {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutputPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PackageVersion,
+
+        [Parameter(Mandatory = $true)]
+        [string]$GoArchitecture,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DotNetArchitectureLabel
+    )
+
+    $previousGoos = $env:GOOS
+    $previousGoarch = $env:GOARCH
+    $previousCgoEnabled = $env:CGO_ENABLED
+
+    try {
+        $env:GOOS = 'windows'
+        $env:GOARCH = $GoArchitecture
+        $env:CGO_ENABLED = '0'
+
+        Invoke-Go -Arguments @(
+            'build',
+            '-trimpath',
+            '-ldflags',
+            "-H=windowsgui -s -w -X main.appVersion=$PackageVersion -X main.requiredArchitecture=$DotNetArchitectureLabel",
+            '-o',
+            $OutputPath,
+            $SourcePath
+        )
+    }
+    finally {
+        Set-EnvironmentVariableForProcess -Name 'GOOS' -Value $previousGoos
+        Set-EnvironmentVariableForProcess -Name 'GOARCH' -Value $previousGoarch
+        Set-EnvironmentVariableForProcess -Name 'CGO_ENABLED' -Value $previousCgoEnabled
+    }
+}
+
 function Assert-PathInsideRoot {
     param(
         [Parameter(Mandatory = $true)]
@@ -78,14 +182,42 @@ function New-InstallerSource {
         [string]$Path,
 
         [Parameter(Mandatory = $true)]
-        [string]$SourceExePath,
+        [string]$LayoutRoot,
 
         [Parameter(Mandatory = $true)]
         [string]$ProductVersion
     )
 
-    $escapedSourceExePath = [System.Security.SecurityElement]::Escape($SourceExePath)
+    $launcherPath = Join-Path $LayoutRoot 'blockScreen.exe'
+    $payloadRoot = Join-Path $LayoutRoot 'app'
+    $payloadFiles = @(Get-ChildItem -LiteralPath $payloadRoot -File | Sort-Object Name)
+
+    if (-not (Test-Path -LiteralPath $launcherPath)) {
+        throw "Launcher executable was not found: $launcherPath"
+    }
+
+    if ($payloadFiles.Count -eq 0) {
+        throw "Published application payload is empty: $payloadRoot"
+    }
+
+    $escapedLauncherPath = [System.Security.SecurityElement]::Escape($launcherPath)
     $escapedProductVersion = [System.Security.SecurityElement]::Escape($ProductVersion)
+    $payloadComponentRefs = [System.Text.StringBuilder]::new()
+    $payloadComponents = [System.Text.StringBuilder]::new()
+
+    for ($i = 0; $i -lt $payloadFiles.Count; $i++) {
+        $file = $payloadFiles[$i]
+        $componentId = "AppPayloadFile$i"
+        $fileId = "AppPayloadFileSource$i"
+        $escapedSource = [System.Security.SecurityElement]::Escape($file.FullName)
+        [void]$payloadComponentRefs.AppendLine("      <ComponentRef Id=""$componentId"" />")
+        [void]$payloadComponents.AppendLine("          <Component Id=""$componentId"" Guid=""*"">")
+        [void]$payloadComponents.AppendLine("            <File Id=""$fileId"" Source=""$escapedSource"" KeyPath=""yes"" />")
+        [void]$payloadComponents.AppendLine("          </Component>")
+    }
+
+    $payloadComponentRefXml = $payloadComponentRefs.ToString().TrimEnd()
+    $payloadComponentXml = $payloadComponents.ToString().TrimEnd()
 
     $content = @"
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
@@ -100,6 +232,7 @@ function New-InstallerSource {
 
     <Feature Id="MainFeature" Title="blockScreen" Level="1">
       <ComponentRef Id="AppExecutable" />
+$payloadComponentRefXml
       <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="DesktopShortcut" />
     </Feature>
@@ -107,8 +240,11 @@ function New-InstallerSource {
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="blockScreen">
         <Component Id="AppExecutable" Guid="{8A53D80D-705A-4F06-9757-CF5642415948}">
-          <File Id="blockScreenExe" Source="$escapedSourceExePath" KeyPath="yes" />
+          <File Id="blockScreenExe" Source="$escapedLauncherPath" KeyPath="yes" />
         </Component>
+        <Directory Id="AppPayloadFolder" Name="app">
+$payloadComponentXml
+        </Directory>
       </Directory>
     </StandardDirectory>
 
@@ -137,7 +273,10 @@ function New-InstallerSource {
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $projectPath = Join-Path $repoRoot 'ScreenShade.App\ScreenShade.App.csproj'
+$launcherSourcePath = Join-Path $repoRoot 'Launcher\blockscreen_launcher.go'
 $version = ConvertTo-ReleaseVersion -InputTag $Tag
+$goArchitecture = ConvertTo-GoArchitecture -Runtime $Runtime
+$dotNetArchitectureLabel = ConvertTo-DotNetArchitectureLabel -Runtime $Runtime
 
 if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
     $artifactsRoot = [System.IO.Path]::GetFullPath($OutputRoot)
@@ -155,13 +294,13 @@ if (Test-Path -LiteralPath $artifactsRoot) {
 $publishRoot = Join-Path $artifactsRoot 'publish'
 $packageRoot = Join-Path $artifactsRoot 'packages'
 $wixRoot = Join-Path $artifactsRoot 'wix'
-$singleExePublishRoot = Join-Path $publishRoot 'exe'
 $portablePublishRoot = Join-Path $publishRoot 'portable'
+$managedAppPublishRoot = Join-Path $portablePublishRoot 'app'
 
-New-Item -ItemType Directory -Path $singleExePublishRoot, $portablePublishRoot, $packageRoot, $wixRoot | Out-Null
+New-Item -ItemType Directory -Path $portablePublishRoot, $managedAppPublishRoot, $packageRoot, $wixRoot | Out-Null
 
 $commonVersionProperties = @(
-    '/p:AssemblyName=blockScreen',
+    '/p:AssemblyName=blockScreen.App',
     "/p:Version=$($version.PackageVersion)",
     "/p:PackageVersion=$($version.PackageVersion)",
     "/p:AssemblyVersion=$($version.NumericVersion)",
@@ -179,7 +318,7 @@ $commonPublishArguments = @(
     '--runtime',
     $Runtime,
     '--self-contained',
-    'true'
+    'false'
 ) + $commonVersionProperties
 
 Invoke-DotNet -Arguments @('restore', $projectPath)
@@ -187,33 +326,26 @@ Invoke-DotNet -Arguments @('tool', 'restore')
 
 Invoke-DotNet -Arguments ($commonPublishArguments + @(
     '--output',
-    $singleExePublishRoot,
-    '/p:PublishSingleFile=true',
-    '/p:EnableCompressionInSingleFile=true'
+    $managedAppPublishRoot,
+    '/p:PublishSingleFile=false'
 ))
 
 $assetPrefix = "blockScreen-$($version.PackageVersion)-$Runtime"
-$singleExeSource = Join-Path $singleExePublishRoot 'blockScreen.exe'
-$exeAssetPath = Join-Path $packageRoot "$assetPrefix.exe"
-
-if (-not (Test-Path -LiteralPath $singleExeSource)) {
-    throw "Expected single EXE was not produced: $singleExeSource"
-}
-
-Copy-Item -LiteralPath $singleExeSource -Destination $exeAssetPath -Force
-
-Invoke-DotNet -Arguments ($commonPublishArguments + @(
-    '--output',
-    $portablePublishRoot,
-    '/p:PublishSingleFile=false'
-))
+$launcherOutputPath = Join-Path $portablePublishRoot 'blockScreen.exe'
+Invoke-LauncherBuild `
+    -SourcePath $launcherSourcePath `
+    -OutputPath $launcherOutputPath `
+    -PackageVersion $version.PackageVersion `
+    -GoArchitecture $goArchitecture `
+    -DotNetArchitectureLabel $dotNetArchitectureLabel
 
 $portableReadmePath = Join-Path $portablePublishRoot 'PORTABLE.txt'
 Set-Content -LiteralPath $portableReadmePath -Encoding ASCII -Value @(
     'blockScreen portable package',
     '',
     'Run blockScreen.exe from this folder.',
-    'Keep all files together.',
+    'Keep blockScreen.exe and the app folder together.',
+    'Requires Microsoft .NET 8 Desktop Runtime. The launcher will open the official download page if it is missing.',
     'This package does not install services, shortcuts, startup items, registry entries, or files outside this directory.'
 )
 
@@ -222,7 +354,7 @@ Compress-Archive -Path (Join-Path $portablePublishRoot '*') -DestinationPath $po
 
 $installerSourcePath = Join-Path $wixRoot 'blockScreen.wxs'
 $msiAssetPath = Join-Path $packageRoot "$assetPrefix.msi"
-New-InstallerSource -Path $installerSourcePath -SourceExePath $singleExeSource -ProductVersion $version.NumericVersion
+New-InstallerSource -Path $installerSourcePath -LayoutRoot $portablePublishRoot -ProductVersion $version.NumericVersion
 Invoke-DotNet -Arguments @('tool', 'run', 'wix', '--', 'build', $installerSourcePath, '-out', $msiAssetPath, '-pdbtype', 'none')
 
 $metadataPath = Join-Path $artifactsRoot 'release-metadata.json'
@@ -232,7 +364,6 @@ $metadataPath = Join-Path $artifactsRoot 'release-metadata.json'
     packageVersion = $version.PackageVersion
     isPrerelease = $version.IsPrerelease
     assets = [pscustomobject]@{
-        exe = $exeAssetPath
         msi = $msiAssetPath
         portable = $portableZipPath
     }
