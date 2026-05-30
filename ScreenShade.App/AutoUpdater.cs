@@ -177,6 +177,13 @@ internal static class AutoUpdater
             WindowStyle = ProcessWindowStyle.Hidden
         };
 
+        var scriptWorkingDirectory = Path.GetDirectoryName(scriptPath);
+        if (!string.IsNullOrWhiteSpace(scriptWorkingDirectory))
+        {
+            // Keep the updater process out of the current app folder so portable updates can replace it.
+            startInfo.WorkingDirectory = scriptWorkingDirectory;
+        }
+
         if (requiresElevation)
         {
             startInfo.Verb = "runas";
@@ -239,6 +246,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $backupPath = "$TargetPath.old"
+$scriptWorkingDirectory = Split-Path -Parent $PSCommandPath
 
 function Show-Failure {
     param([string]$Message)
@@ -248,6 +256,10 @@ function Show-Failure {
 }
 
 try {
+    if (-not [string]::IsNullOrWhiteSpace($scriptWorkingDirectory)) {
+        Set-Location -LiteralPath $scriptWorkingDirectory
+    }
+
     if ($ProcessId -gt 0) {
         try {
             Wait-Process -Id $ProcessId -Timeout 120 -ErrorAction SilentlyContinue
