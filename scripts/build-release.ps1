@@ -271,6 +271,48 @@ $payloadComponentXml
     Set-Content -LiteralPath $Path -Value $content -Encoding UTF8
 }
 
+function New-BundleSource {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [string]$MsiPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProductVersion
+    )
+
+    if (-not (Test-Path -LiteralPath $MsiPath)) {
+        throw "MSI package was not found: $MsiPath"
+    }
+
+    $escapedMsiPath = [System.Security.SecurityElement]::Escape($MsiPath)
+    $escapedProductVersion = [System.Security.SecurityElement]::Escape($ProductVersion)
+
+    $content = @"
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle
+    Name="blockScreen"
+    Manufacturer="yin2hao-windowsTools"
+    Version="$escapedProductVersion"
+    UpgradeCode="{D8DCA352-D837-4727-8C7E-01E138AF4EE8}">
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+        Theme="hyperlinkLicense"
+        LicenseUrl="https://github.com/yin2hao-windowsTools/blockScreen/blob/master/LICENSE" />
+    </BootstrapperApplication>
+    <Chain>
+      <MsiPackage SourceFile="$escapedMsiPath" />
+    </Chain>
+  </Bundle>
+</Wix>
+"@
+
+    Set-Content -LiteralPath $Path -Value $content -Encoding UTF8
+}
+
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $projectPath = Join-Path $repoRoot 'ScreenShade.App\ScreenShade.App.csproj'
 $launcherSourcePath = Join-Path $repoRoot 'Launcher\blockscreen_launcher.go'
@@ -357,6 +399,11 @@ $msiAssetPath = Join-Path $packageRoot "$assetPrefix.msi"
 New-InstallerSource -Path $installerSourcePath -LayoutRoot $portablePublishRoot -ProductVersion $version.NumericVersion
 Invoke-DotNet -Arguments @('tool', 'run', 'wix', '--', 'build', $installerSourcePath, '-out', $msiAssetPath, '-pdbtype', 'none')
 
+$bundleSourcePath = Join-Path $wixRoot 'blockScreen.bundle.wxs'
+$setupExeAssetPath = Join-Path $packageRoot "$assetPrefix-setup.exe"
+New-BundleSource -Path $bundleSourcePath -MsiPath $msiAssetPath -ProductVersion $version.NumericVersion
+Invoke-DotNet -Arguments @('tool', 'run', 'wix', '--', 'build', $bundleSourcePath, '-ext', 'WixToolset.Bal.wixext', '-out', $setupExeAssetPath, '-pdbtype', 'none')
+
 $metadataPath = Join-Path $artifactsRoot 'release-metadata.json'
 [pscustomobject]@{
     tag = $Tag
@@ -364,6 +411,7 @@ $metadataPath = Join-Path $artifactsRoot 'release-metadata.json'
     packageVersion = $version.PackageVersion
     isPrerelease = $version.IsPrerelease
     assets = [pscustomobject]@{
+        exe = $setupExeAssetPath
         msi = $msiAssetPath
         portable = $portableZipPath
     }
