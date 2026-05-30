@@ -67,6 +67,15 @@ function Invoke-Go {
     }
 }
 
+function Ensure-WixExtension {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExtensionRef
+    )
+
+    Invoke-DotNet -Arguments @('tool', 'run', 'wix', '--', 'extension', 'add', $ExtensionRef)
+}
+
 function ConvertTo-GoArchitecture {
     param(
         [Parameter(Mandatory = $true)]
@@ -370,6 +379,7 @@ $commonPublishArguments = @(
 
 Invoke-DotNet -Arguments @('restore', $projectPath)
 Invoke-DotNet -Arguments @('tool', 'restore')
+Ensure-WixExtension -ExtensionRef 'WixToolset.Bal.wixext/4.0.5'
 
 Invoke-DotNet -Arguments ($commonPublishArguments + @(
     '--output',
