@@ -118,7 +118,7 @@ function Set-EnvironmentVariableForProcess {
 function Invoke-LauncherBuild {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$SourcePath,
+        [string]$ProjectPath,
 
         [Parameter(Mandatory = $true)]
         [string]$OutputPath,
@@ -141,16 +141,21 @@ function Invoke-LauncherBuild {
         $env:GOOS = 'windows'
         $env:GOARCH = $GoArchitecture
         $env:CGO_ENABLED = '0'
-
-        Invoke-Go -Arguments @(
-            'build',
-            '-trimpath',
-            '-ldflags',
-            "-H=windowsgui -s -w -X main.appVersion=$PackageVersion -X main.requiredArchitecture=$DotNetArchitectureLabel",
-            '-o',
-            $OutputPath,
-            $SourcePath
-        )
+        Push-Location -LiteralPath $ProjectPath
+        try {
+            Invoke-Go -Arguments @(
+                'build',
+                '-trimpath',
+                '-ldflags',
+                "-H=windowsgui -s -w -X main.appVersion=$PackageVersion -X main.requiredArchitecture=$DotNetArchitectureLabel",
+                '-o',
+                $OutputPath,
+                '.'
+            )
+        }
+        finally {
+            Pop-Location
+        }
     }
     finally {
         Set-EnvironmentVariableForProcess -Name 'GOOS' -Value $previousGoos
@@ -315,7 +320,7 @@ function New-BundleSource {
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $projectPath = Join-Path $repoRoot 'ScreenShade.App\ScreenShade.App.csproj'
-$launcherSourcePath = Join-Path $repoRoot 'Launcher\blockscreen_launcher.go'
+$launcherProjectPath = Join-Path $repoRoot 'Launcher'
 $version = ConvertTo-ReleaseVersion -InputTag $Tag
 $goArchitecture = ConvertTo-GoArchitecture -Runtime $Runtime
 $dotNetArchitectureLabel = ConvertTo-DotNetArchitectureLabel -Runtime $Runtime
@@ -375,7 +380,7 @@ Invoke-DotNet -Arguments ($commonPublishArguments + @(
 $assetPrefix = "blockScreen-$($version.PackageVersion)-$Runtime"
 $launcherOutputPath = Join-Path $portablePublishRoot 'blockScreen.exe'
 Invoke-LauncherBuild `
-    -SourcePath $launcherSourcePath `
+    -ProjectPath $launcherProjectPath `
     -OutputPath $launcherOutputPath `
     -PackageVersion $version.PackageVersion `
     -GoArchitecture $goArchitecture `
