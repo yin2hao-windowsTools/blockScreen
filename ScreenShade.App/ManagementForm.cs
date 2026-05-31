@@ -1,3 +1,5 @@
+using System.Drawing.Drawing2D;
+
 namespace ScreenShade.App;
 
 internal sealed class ManagementForm : Form
@@ -5,6 +7,8 @@ internal sealed class ManagementForm : Form
     private static readonly Color PageBackColor = Color.FromArgb(246, 248, 252);
     private static readonly Color CardBorderColor = Color.FromArgb(220, 226, 235);
     private static readonly Color AccentColor = Color.FromArgb(24, 119, 242);
+    private static readonly Color PrimaryTextColor = Color.FromArgb(17, 24, 39);
+    private static readonly Color SecondaryTextColor = Color.FromArgb(107, 114, 128);
 
     private readonly SettingsStore _settingsStore;
     private readonly OverlayController _overlayController;
@@ -98,7 +102,7 @@ internal sealed class ManagementForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 206));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
 
-        var displayCard = CreateCard("显示器", BuildDisplayGrid(), CreateSecondaryButton("刷新显示器", (_, _) => RefreshDisplayList(), 154));
+        var displayCard = CreateCard("显示器", BuildDisplayGrid(), CreateRefreshButton());
         displayCard.Margin = new Padding(0, 0, 0, 18);
         root.Controls.Add(displayCard, 0, 0);
 
@@ -122,8 +126,8 @@ internal sealed class ManagementForm : Form
         _displayGrid.AllowUserToResizeRows = false;
         _displayGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         _displayGrid.BackgroundColor = Color.White;
-        _displayGrid.BorderStyle = BorderStyle.None;
-        _displayGrid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+        _displayGrid.BorderStyle = BorderStyle.FixedSingle;
+        _displayGrid.CellBorderStyle = DataGridViewCellBorderStyle.Single;
         _displayGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
         _displayGrid.ColumnHeadersHeight = 54;
         _displayGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
@@ -156,17 +160,15 @@ internal sealed class ManagementForm : Form
             SelectionForeColor = Color.FromArgb(31, 41, 55)
         };
 
-        var selectColumn = new DataGridViewCheckBoxColumn
+        var displayColumn = new DataGridViewColumn(new DisplayCheckBoxCell())
         {
-            AutoSizeMode = DataGridViewAutoSizeColumnMode.None,
             FillWeight = 28,
-            HeaderText = string.Empty,
-            MinimumWidth = 56,
-            Name = "Selected",
-            Resizable = DataGridViewTriState.False,
-            Width = 56
+            HeaderText = "显示器",
+            MinimumWidth = 180,
+            Name = "Display",
+            ReadOnly = true,
+            SortMode = DataGridViewColumnSortMode.NotSortable
         };
-        var displayColumn = CreateTextColumn("Display", "显示器", 24);
         var typeColumn = CreateTextColumn("Type", "类型", 24);
         var resolutionColumn = CreateTextColumn("Resolution", "分辨率", 30);
         var locationColumn = CreateTextColumn("Location", "位置", 38);
@@ -180,8 +182,9 @@ internal sealed class ManagementForm : Form
             Alignment = DataGridViewContentAlignment.MiddleCenter
         };
 
-        _displayGrid.Columns.AddRange(selectColumn, displayColumn, typeColumn, resolutionColumn, locationColumn);
+        _displayGrid.Columns.AddRange(displayColumn, typeColumn, resolutionColumn, locationColumn);
         _displayGrid.CurrentCellDirtyStateChanged += DisplayGrid_CurrentCellDirtyStateChanged;
+        _displayGrid.CellMouseUp += DisplayGrid_CellMouseUp;
         return _displayGrid;
     }
 
@@ -267,8 +270,8 @@ internal sealed class ManagementForm : Form
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
 
-        AddHotKeyRow(panel, 0, "切换黑屏", _toggleHotKeyInput, "默认 Ctrl+Alt+B");
-        AddHotKeyRow(panel, 1, "快速定时菜单", _quickDelayHotKeyInput, "默认 Ctrl+Alt+T");
+        AddHotKeyRow(panel, 0, "切换黑屏", _toggleHotKeyInput, "默认 Ctrl+Alt...");
+        AddHotKeyRow(panel, 1, "快速定时菜单", _quickDelayHotKeyInput, "默认 Ctrl+Alt...");
         return panel;
     }
 
@@ -292,7 +295,7 @@ internal sealed class ManagementForm : Form
         _startShadeButton.Click += (_, _) => StartShade();
         layout.Controls.Add(_startShadeButton, 1, 0);
 
-        ConfigureSecondaryButton(_delayShadeButton, "延时自动遮罩", 186);
+        ConfigureSecondaryButton(_delayShadeButton, "延时启动遮罩", 186);
         _delayShadeButton.Click += (_, _) => StartDelayedShade();
         layout.Controls.Add(_delayShadeButton, 2, 0);
 
@@ -313,19 +316,20 @@ internal sealed class ManagementForm : Form
 
     private Control CreateCard(string title, Control body, Control? headerAction = null)
     {
-        var card = new Panel
+        var card = new RoundedPanel
         {
-            BackColor = CardBorderColor,
+            BorderColor = CardBorderColor,
+            CornerRadius = 12,
             Dock = DockStyle.Fill,
-            Padding = new Padding(1)
+            FillColor = Color.White,
+            Padding = new Padding(24, 20, 24, 24)
         };
 
         var content = new TableLayoutPanel
         {
-            BackColor = Color.White,
+            BackColor = Color.Transparent,
             ColumnCount = 2,
             Dock = DockStyle.Fill,
-            Padding = new Padding(24, 20, 24, 24),
             RowCount = 2
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -367,6 +371,17 @@ internal sealed class ManagementForm : Form
         return button;
     }
 
+    private Button CreateRefreshButton()
+    {
+        var button = CreateSecondaryButton("刷新显示器", (_, _) => RefreshDisplayList(), 172);
+        button.Image = CreateRefreshIcon(PrimaryTextColor);
+        button.ImageAlign = ContentAlignment.MiddleLeft;
+        button.Padding = new Padding(14, 0, 14, 0);
+        button.TextAlign = ContentAlignment.MiddleRight;
+        button.TextImageRelation = TextImageRelation.ImageBeforeText;
+        return button;
+    }
+
     private static void ConfigurePrimaryButton(Button button, string text, int width)
     {
         button.AutoSize = false;
@@ -382,6 +397,7 @@ internal sealed class ManagementForm : Form
         button.Size = new Size(width, 46);
         button.Text = text;
         button.UseVisualStyleBackColor = false;
+        ApplyRoundedRegion(button, 7);
     }
 
     private static void ConfigureSecondaryButton(Button button, string text, int width)
@@ -399,6 +415,49 @@ internal sealed class ManagementForm : Form
         button.Size = new Size(width, 46);
         button.Text = text;
         button.UseVisualStyleBackColor = false;
+        ApplyRoundedRegion(button, 7);
+    }
+
+    private static Bitmap CreateRefreshIcon(Color color)
+    {
+        var bitmap = new Bitmap(18, 18);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        using var pen = new Pen(color, 2F)
+        {
+            StartCap = LineCap.Round,
+            EndCap = LineCap.Round
+        };
+
+        graphics.DrawArc(pen, 3, 3, 12, 12, 35, 290);
+        using var brush = new SolidBrush(color);
+        var arrow = new[]
+        {
+            new PointF(13.5F, 2.8F),
+            new PointF(16F, 2.2F),
+            new PointF(15.3F, 4.8F)
+        };
+        graphics.FillPolygon(brush, arrow);
+        return bitmap;
+    }
+
+    private static void ApplyRoundedRegion(Control control, int radius)
+    {
+        control.Resize += (_, _) => UpdateRoundedRegion(control, radius);
+        UpdateRoundedRegion(control, radius);
+    }
+
+    private static void UpdateRoundedRegion(Control control, int radius)
+    {
+        if (control.Width <= 0 || control.Height <= 0)
+        {
+            return;
+        }
+
+        using var path = CreateRoundedRectanglePath(new Rectangle(0, 0, control.Width, control.Height), radius);
+        control.Region?.Dispose();
+        control.Region = new Region(path);
     }
 
     private static DataGridViewTextBoxColumn CreateTextColumn(string name, string headerText, float fillWeight)
@@ -412,6 +471,30 @@ internal sealed class ManagementForm : Form
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable
         };
+    }
+
+    private static GraphicsPath CreateRoundedRectanglePath(Rectangle bounds, int radius)
+    {
+        var diameter = radius * 2;
+        var path = new GraphicsPath();
+
+        if (diameter <= 0)
+        {
+            path.AddRectangle(bounds);
+            path.CloseFigure();
+            return path;
+        }
+
+        var arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
+        path.AddArc(arc, 180, 90);
+        arc.X = bounds.Right - diameter - 1;
+        path.AddArc(arc, 270, 90);
+        arc.Y = bounds.Bottom - diameter - 1;
+        path.AddArc(arc, 0, 90);
+        arc.X = bounds.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
     private void LoadSettings()
@@ -440,8 +523,8 @@ internal sealed class ManagementForm : Form
         for (var index = 0; index < screens.Length; index++)
         {
             var item = new DisplayItem(index + 1, screens[index]);
-            var isChecked = checkedDisplayDeviceNames.Count == 0 || checkedDisplayDeviceNames.Contains(item.DeviceName);
-            var rowIndex = _displayGrid.Rows.Add(isChecked, item.DisplayName, item.DisplayType, item.Resolution, item.DeviceName);
+            item.IsSelected = checkedDisplayDeviceNames.Count == 0 || checkedDisplayDeviceNames.Contains(item.DeviceName);
+            var rowIndex = _displayGrid.Rows.Add(item.DisplayName, item.DisplayType, item.Resolution, item.DeviceName);
             _displayGrid.Rows[rowIndex].Tag = item;
         }
 
@@ -465,7 +548,7 @@ internal sealed class ManagementForm : Form
 
     private static bool IsDisplayRowChecked(DataGridViewRow row)
     {
-        return row.Cells[0].Value is true;
+        return row.Tag is DisplayItem { IsSelected: true };
     }
 
     private void SaveSettings()
@@ -613,7 +696,7 @@ internal sealed class ManagementForm : Form
         {
             AutoEllipsis = true,
             Dock = DockStyle.Fill,
-            ForeColor = SystemColors.GrayText,
+            ForeColor = SecondaryTextColor,
             Margin = new Padding(0, 10, 0, 0),
             Text = hintText,
             TextAlign = ContentAlignment.TopLeft
@@ -642,7 +725,7 @@ internal sealed class ManagementForm : Form
         if (_overlayController.IsActive)
         {
             _startShadeButton.Text = "关闭遮罩";
-            _delayShadeButton.Text = "延时自动遮罩";
+            _delayShadeButton.Text = "延时启动遮罩";
         }
         else if (_overlayController.IsPending)
         {
@@ -652,7 +735,7 @@ internal sealed class ManagementForm : Form
         else
         {
             _startShadeButton.Text = "启动遮罩";
-            _delayShadeButton.Text = "延时自动遮罩";
+            _delayShadeButton.Text = "延时启动遮罩";
         }
     }
 
@@ -662,6 +745,17 @@ internal sealed class ManagementForm : Form
         {
             _displayGrid.CommitEdit(DataGridViewDataErrorContexts.Commit);
         }
+    }
+
+    private void DisplayGrid_CellMouseUp(object? sender, DataGridViewCellMouseEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex != 0 || _displayGrid.Rows[e.RowIndex].Tag is not DisplayItem item)
+        {
+            return;
+        }
+
+        item.IsSelected = !item.IsSelected;
+        _displayGrid.InvalidateCell(e.ColumnIndex, e.RowIndex);
     }
 
     private void Tabs_DrawItem(object? sender, DrawItemEventArgs e)
@@ -674,15 +768,21 @@ internal sealed class ManagementForm : Form
         var bounds = e.Bounds;
         var isSelected = e.Index == tabControl.SelectedIndex;
 
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var pageBrush = new SolidBrush(PageBackColor);
+        e.Graphics.FillRectangle(pageBrush, bounds);
+
+        var tabBounds = Rectangle.Inflate(bounds, -2, -4);
         using var backgroundBrush = new SolidBrush(isSelected ? Color.White : Color.FromArgb(250, 251, 253));
         using var borderPen = new Pen(CardBorderColor);
-        e.Graphics.FillRectangle(backgroundBrush, bounds);
-        e.Graphics.DrawRectangle(borderPen, bounds.X, bounds.Y, bounds.Width - 1, bounds.Height - 1);
+        using var tabPath = CreateRoundedRectanglePath(tabBounds, 8);
+        e.Graphics.FillPath(backgroundBrush, tabPath);
+        e.Graphics.DrawPath(borderPen, tabPath);
 
         if (isSelected)
         {
             using var accentPen = new Pen(AccentColor, 3);
-            e.Graphics.DrawLine(accentPen, bounds.Left + 12, bounds.Bottom - 2, bounds.Right - 12, bounds.Bottom - 2);
+            e.Graphics.DrawLine(accentPen, tabBounds.Left + 12, tabBounds.Bottom - 2, tabBounds.Right - 12, tabBounds.Bottom - 2);
         }
 
         TextRenderer.DrawText(
@@ -694,8 +794,124 @@ internal sealed class ManagementForm : Form
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
+    private sealed class DisplayCheckBoxCell : DataGridViewTextBoxCell
+    {
+        protected override void Paint(
+            Graphics graphics,
+            Rectangle clipBounds,
+            Rectangle cellBounds,
+            int rowIndex,
+            DataGridViewElementStates cellState,
+            object? value,
+            object? formattedValue,
+            string? errorText,
+            DataGridViewCellStyle cellStyle,
+            DataGridViewAdvancedBorderStyle advancedBorderStyle,
+            DataGridViewPaintParts paintParts)
+        {
+            base.Paint(
+                graphics,
+                clipBounds,
+                cellBounds,
+                rowIndex,
+                cellState,
+                value,
+                formattedValue,
+                errorText,
+                cellStyle,
+                advancedBorderStyle,
+                paintParts & ~DataGridViewPaintParts.ContentForeground);
+
+            var checkedState = OwningRow?.Tag is DisplayItem { IsSelected: true };
+            var glyphSize = Application.RenderWithVisualStyles
+                ? CheckBoxRenderer.GetGlyphSize(graphics, System.Windows.Forms.VisualStyles.CheckBoxState.UncheckedNormal)
+                : new Size(14, 14);
+
+            var checkboxBounds = new Rectangle(
+                cellBounds.Left + 18,
+                cellBounds.Top + (cellBounds.Height - glyphSize.Height) / 2,
+                glyphSize.Width,
+                glyphSize.Height);
+
+            if (Application.RenderWithVisualStyles)
+            {
+                CheckBoxRenderer.DrawCheckBox(
+                    graphics,
+                    checkboxBounds.Location,
+                    checkedState
+                        ? System.Windows.Forms.VisualStyles.CheckBoxState.CheckedNormal
+                        : System.Windows.Forms.VisualStyles.CheckBoxState.UncheckedNormal);
+            }
+            else
+            {
+                ControlPaint.DrawCheckBox(
+                    graphics,
+                    checkboxBounds,
+                    checkedState ? ButtonState.Checked : ButtonState.Normal);
+            }
+
+            var textBounds = new Rectangle(
+                checkboxBounds.Right + 16,
+                cellBounds.Top,
+                Math.Max(0, cellBounds.Right - checkboxBounds.Right - 24),
+                cellBounds.Height);
+            var textColor = cellState.HasFlag(DataGridViewElementStates.Selected)
+                ? cellStyle.SelectionForeColor
+                : cellStyle.ForeColor;
+
+            TextRenderer.DrawText(
+                graphics,
+                Convert.ToString(formattedValue),
+                cellStyle.Font,
+                textBounds,
+                textColor,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+        }
+    }
+
+    private sealed class RoundedPanel : Panel
+    {
+        public RoundedPanel()
+        {
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw
+                | ControlStyles.UserPaint,
+                true);
+        }
+
+        public Color BorderColor { get; set; } = CardBorderColor;
+
+        public int CornerRadius { get; set; } = 12;
+
+        public Color FillColor { get; set; } = Color.White;
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            e.Graphics.Clear(Parent?.BackColor ?? PageBackColor);
+
+            using var path = CreateRoundedRectanglePath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
+            using var brush = new SolidBrush(FillColor);
+            e.Graphics.FillPath(brush, path);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            using var path = CreateRoundedRectanglePath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
+            using var pen = new Pen(BorderColor);
+            e.Graphics.DrawPath(pen, path);
+        }
+    }
+
     private sealed class DisplayItem(int index, Screen screen)
     {
+        public bool IsSelected { get; set; }
+
         public string DeviceName { get; } = screen.DeviceName;
 
         public string DisplayName { get; } = $"显示器 {index}";
