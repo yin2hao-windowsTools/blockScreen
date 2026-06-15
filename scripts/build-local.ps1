@@ -108,6 +108,45 @@ function Assert-PathInsideRoot {
     }
 }
 
+function Stop-OutputRootProcesses {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OutputRoot
+    )
+
+    if (-not (Test-Path -LiteralPath $OutputRoot)) {
+        return
+    }
+
+    $outputRootPrefix = [System.IO.Path]::GetFullPath($OutputRoot).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    $currentProcessId = [System.Diagnostics.Process]::GetCurrentProcess().Id
+    $runningOutputProcesses = @(Get-CimInstance -ClassName Win32_Process | Where-Object {
+        $_.ProcessId -ne $currentProcessId `
+            -and -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) `
+            -and [System.IO.Path]::GetFullPath($_.ExecutablePath).StartsWith(
+                $outputRootPrefix,
+                [System.StringComparison]::OrdinalIgnoreCase)
+    })
+
+    foreach ($process in $runningOutputProcesses) {
+        Write-Host "Stopping running local build process: $($process.Name) (PID $($process.ProcessId))"
+        Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop
+    }
+
+    foreach ($process in $runningOutputProcesses) {
+        try {
+            Wait-Process -Id $process.ProcessId -Timeout 10 -ErrorAction Stop
+        }
+        catch {
+            if (Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue) {
+                throw "Timed out waiting for local build process $($process.Name) (PID $($process.ProcessId)) to exit."
+            }
+        }
+    }
+}
+
 function Invoke-LauncherBuild {
     param(
         [Parameter(Mandatory = $true)]
@@ -166,6 +205,8 @@ else {
 }
 
 Assert-PathInsideRoot -Root $repoRoot -Target $resolvedOutputRoot
+
+Stop-OutputRootProcesses -OutputRoot $resolvedOutputRoot
 
 if (Test-Path -LiteralPath $resolvedOutputRoot) {
     Remove-Item -LiteralPath $resolvedOutputRoot -Recurse -Force
