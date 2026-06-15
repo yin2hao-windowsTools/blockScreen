@@ -9,6 +9,7 @@ internal sealed class ManagementForm : Form
     private static readonly Color AccentColor = Color.FromArgb(24, 119, 242);
     private static readonly Color PrimaryTextColor = Color.FromArgb(17, 24, 39);
     private static readonly Color SecondaryTextColor = Color.FromArgb(107, 114, 128);
+    private static readonly Color MutedBackColor = Color.FromArgb(241, 245, 249);
 
     private readonly SettingsStore _settingsStore;
     private readonly OverlayController _overlayController;
@@ -21,7 +22,12 @@ internal sealed class ManagementForm : Form
     private readonly HotKeyInputBox _quickDelayHotKeyInput = new();
     private readonly Button _startShadeButton = new();
     private readonly Button _delayShadeButton = new();
+    private readonly Button _managementNavButton = new();
+    private readonly Button _aboutNavButton = new();
+    private readonly Panel _pageHost = new();
     private readonly Icon _icon;
+    private Control? _managementPage;
+    private Control? _aboutPage;
 
     public ManagementForm(SettingsStore settingsStore, OverlayController overlayController, Icon icon)
     {
@@ -32,10 +38,10 @@ internal sealed class ManagementForm : Form
         AutoScaleDimensions = new SizeF(9F, 20F);
         AutoScaleMode = AutoScaleMode.Font;
         BackColor = PageBackColor;
-        ClientSize = new Size(1260, 860);
-        Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Regular, GraphicsUnit.Point);
+        ClientSize = new Size(1080, 760);
+        Font = new Font("Microsoft YaHei UI", 9.5F, FontStyle.Regular, GraphicsUnit.Point);
         Icon = icon;
-        MinimumSize = new Size(1120, 780);
+        MinimumSize = new Size(940, 660);
         StartPosition = FormStartPosition.CenterScreen;
         Text = $"{AppInfo.Name} 管理";
 
@@ -58,33 +64,77 @@ internal sealed class ManagementForm : Form
 
     private void BuildLayout()
     {
-        var tabs = new TabControl
+        var root = new TableLayoutPanel
+        {
+            BackColor = PageBackColor,
+            ColumnCount = 1,
+            Dock = DockStyle.Fill,
+            RowCount = 2
+        };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        root.Controls.Add(BuildNavigation(), 0, 0);
+
+        _pageHost.BackColor = PageBackColor;
+        _pageHost.Dock = DockStyle.Fill;
+        root.Controls.Add(_pageHost, 0, 1);
+
+        Controls.Add(root);
+
+        _managementPage = BuildManagementPage();
+        _aboutPage = new AboutPanel(_icon)
         {
             Dock = DockStyle.Fill,
-            DrawMode = TabDrawMode.OwnerDrawFixed,
-            ItemSize = new Size(118, 54),
-            Padding = new Point(18, 10),
-            SizeMode = TabSizeMode.Fixed
+            Margin = new Padding(20, 12, 20, 20)
         };
-        tabs.DrawItem += Tabs_DrawItem;
 
-        var managementPage = new TabPage("管理")
+        ShowPage(NavigationPage.Management);
+    }
+
+    private Control BuildNavigation()
+    {
+        var navBar = new Panel
         {
-            BackColor = PageBackColor,
-            Padding = new Padding(0)
+            BackColor = Color.White,
+            Dock = DockStyle.Fill,
+            Padding = new Padding(20, 12, 20, 10)
         };
-        managementPage.Controls.Add(BuildManagementPage());
 
-        var aboutPage = new TabPage("关于")
+        var navLayout = new FlowLayoutPanel
         {
-            BackColor = PageBackColor,
-            Padding = new Padding(0)
+            AutoSize = true,
+            BackColor = Color.Transparent,
+            Dock = DockStyle.Left,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false
         };
-        aboutPage.Controls.Add(new AboutPanel(_icon));
 
-        tabs.TabPages.Add(managementPage);
-        tabs.TabPages.Add(aboutPage);
-        Controls.Add(tabs);
+        ConfigureNavButton(_managementNavButton, "管理");
+        _managementNavButton.Click += (_, _) => ShowPage(NavigationPage.Management);
+        navLayout.Controls.Add(_managementNavButton);
+
+        ConfigureNavButton(_aboutNavButton, "关于");
+        _aboutNavButton.Click += (_, _) => ShowPage(NavigationPage.About);
+        navLayout.Controls.Add(_aboutNavButton);
+
+        navBar.Controls.Add(navLayout);
+        return navBar;
+    }
+
+    private void ShowPage(NavigationPage page)
+    {
+        _pageHost.Controls.Clear();
+
+        var selectedPage = page == NavigationPage.Management ? _managementPage : _aboutPage;
+        if (selectedPage is not null)
+        {
+            _pageHost.Controls.Add(selectedPage);
+        }
+
+        UpdateNavButtonStyle(_managementNavButton, page == NavigationPage.Management);
+        UpdateNavButtonStyle(_aboutNavButton, page == NavigationPage.About);
     }
 
     private Control BuildManagementPage()
@@ -93,25 +143,25 @@ internal sealed class ManagementForm : Form
         {
             ColumnCount = 1,
             Dock = DockStyle.Fill,
-            Padding = new Padding(26),
+            Padding = new Padding(20, 16, 20, 18),
             RowCount = 4
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 136));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 170));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 206));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
 
         var displayCard = CreateCard("显示器", BuildDisplayGrid(), CreateRefreshButton());
-        displayCard.Margin = new Padding(0, 0, 0, 18);
+        displayCard.Margin = new Padding(0, 0, 0, 14);
         root.Controls.Add(displayCard, 0, 0);
 
         var settingsCard = CreateCard("设置", BuildSettingsPanel());
-        settingsCard.Margin = new Padding(0, 0, 0, 18);
+        settingsCard.Margin = new Padding(0, 0, 0, 14);
         root.Controls.Add(settingsCard, 0, 1);
 
         var hotKeyCard = CreateCard("快捷键", BuildHotKeyPanel());
-        hotKeyCard.Margin = new Padding(0, 0, 0, 18);
+        hotKeyCard.Margin = new Padding(0, 0, 0, 12);
         root.Controls.Add(hotKeyCard, 0, 2);
 
         root.Controls.Add(BuildBottomButtons(), 0, 3);
@@ -126,10 +176,10 @@ internal sealed class ManagementForm : Form
         _displayGrid.AllowUserToResizeRows = false;
         _displayGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         _displayGrid.BackgroundColor = Color.White;
-        _displayGrid.BorderStyle = BorderStyle.FixedSingle;
-        _displayGrid.CellBorderStyle = DataGridViewCellBorderStyle.Single;
-        _displayGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.Single;
-        _displayGrid.ColumnHeadersHeight = 54;
+        _displayGrid.BorderStyle = BorderStyle.None;
+        _displayGrid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+        _displayGrid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+        _displayGrid.ColumnHeadersHeight = 42;
         _displayGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         _displayGrid.Dock = DockStyle.Fill;
         _displayGrid.EditMode = DataGridViewEditMode.EditOnEnter;
@@ -137,16 +187,17 @@ internal sealed class ManagementForm : Form
         _displayGrid.GridColor = CardBorderColor;
         _displayGrid.MultiSelect = false;
         _displayGrid.RowHeadersVisible = false;
-        _displayGrid.RowTemplate.Height = 56;
+        _displayGrid.RowTemplate.Height = 48;
         _displayGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
 
         _displayGrid.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
         {
             Alignment = DataGridViewContentAlignment.MiddleCenter,
-            BackColor = Color.White,
-            Font = new Font(Font, FontStyle.Bold),
+            BackColor = MutedBackColor,
+            Font = new Font(Font.FontFamily, 9.5F, FontStyle.Bold, GraphicsUnit.Point),
             ForeColor = Color.FromArgb(30, 41, 59),
-            SelectionBackColor = Color.White,
+            Padding = new Padding(0, 0, 0, 1),
+            SelectionBackColor = MutedBackColor,
             SelectionForeColor = Color.FromArgb(30, 41, 59)
         };
 
@@ -154,24 +205,25 @@ internal sealed class ManagementForm : Form
         {
             Alignment = DataGridViewContentAlignment.MiddleLeft,
             BackColor = Color.White,
+            Font = Font,
             ForeColor = Color.FromArgb(31, 41, 55),
-            Padding = new Padding(8, 0, 8, 0),
-            SelectionBackColor = Color.FromArgb(240, 247, 255),
+            Padding = new Padding(10, 0, 10, 0),
+            SelectionBackColor = Color.FromArgb(238, 246, 255),
             SelectionForeColor = Color.FromArgb(31, 41, 55)
         };
 
         var displayColumn = new DataGridViewColumn(new DisplayCheckBoxCell())
         {
-            FillWeight = 28,
+            FillWeight = 24,
             HeaderText = "显示器",
-            MinimumWidth = 180,
+            MinimumWidth = 160,
             Name = "Display",
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable
         };
-        var typeColumn = CreateTextColumn("Type", "类型", 24);
-        var resolutionColumn = CreateTextColumn("Resolution", "分辨率", 30);
-        var locationColumn = CreateTextColumn("Location", "位置", 38);
+        var typeColumn = CreateTextColumn("Type", "类型", 22);
+        var resolutionColumn = CreateTextColumn("Resolution", "分辨率", 24);
+        var locationColumn = CreateTextColumn("Location", "位置", 42);
 
         typeColumn.DefaultCellStyle = new DataGridViewCellStyle(_displayGrid.DefaultCellStyle)
         {
@@ -196,36 +248,35 @@ internal sealed class ManagementForm : Form
             Dock = DockStyle.Fill,
             RowCount = 2
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 124));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260));
-        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 250));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var delayLabel = new Label
         {
-            AutoSize = true,
             Dock = DockStyle.Fill,
-            Font = new Font(Font.FontFamily, 12F, FontStyle.Regular, GraphicsUnit.Point),
-            Margin = new Padding(0, 10, 14, 0),
+            Font = new Font(Font.FontFamily, 10.5F, FontStyle.Regular, GraphicsUnit.Point),
+            Margin = new Padding(0, 7, 12, 0),
             Text = "延时启动(秒)",
-            TextAlign = ContentAlignment.TopLeft
+            TextAlign = ContentAlignment.MiddleLeft
         };
         panel.Controls.Add(delayLabel, 0, 0);
 
         _delayInput.Anchor = AnchorStyles.Left;
-        _delayInput.Font = new Font(Font.FontFamily, 12F, FontStyle.Regular, GraphicsUnit.Point);
+        _delayInput.Font = new Font(Font.FontFamily, 10.5F, FontStyle.Regular, GraphicsUnit.Point);
         _delayInput.Maximum = 3600;
         _delayInput.Minimum = 0;
-        _delayInput.Size = new Size(160, 34);
+        _delayInput.Size = new Size(112, 32);
         _delayInput.TextAlign = HorizontalAlignment.Right;
         panel.Controls.Add(_delayInput, 1, 0);
 
         _brightnessCheckBox.Anchor = AnchorStyles.Left;
         _brightnessCheckBox.AutoSize = true;
-        _brightnessCheckBox.Font = new Font(Font.FontFamily, 12F, FontStyle.Regular, GraphicsUnit.Point);
-        _brightnessCheckBox.Margin = new Padding(18, 8, 0, 0);
+        _brightnessCheckBox.Font = new Font(Font.FontFamily, 10.5F, FontStyle.Regular, GraphicsUnit.Point);
+        _brightnessCheckBox.Margin = new Padding(14, 0, 0, 0);
         _brightnessCheckBox.Text = "同时降低硬件亮度";
         panel.Controls.Add(_brightnessCheckBox, 2, 0);
         panel.SetColumnSpan(_brightnessCheckBox, 2);
@@ -235,18 +286,18 @@ internal sealed class ManagementForm : Form
             AutoSize = true,
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
-            Margin = new Padding(0, 10, 0, 0),
+            Margin = new Padding(0, 16, 0, 0),
             WrapContents = true
         };
 
         _startupCheckBox.AutoSize = true;
-        _startupCheckBox.Font = new Font(Font.FontFamily, 12F, FontStyle.Regular, GraphicsUnit.Point);
-        _startupCheckBox.Margin = new Padding(0, 0, 28, 0);
+        _startupCheckBox.Font = new Font(Font.FontFamily, 10.5F, FontStyle.Regular, GraphicsUnit.Point);
+        _startupCheckBox.Margin = new Padding(0, 0, 30, 0);
         _startupCheckBox.Text = "开机自启动";
         optionPanel.Controls.Add(_startupCheckBox);
 
         _exitOnMouseMoveCheckBox.AutoSize = true;
-        _exitOnMouseMoveCheckBox.Font = new Font(Font.FontFamily, 12F, FontStyle.Regular, GraphicsUnit.Point);
+        _exitOnMouseMoveCheckBox.Font = new Font(Font.FontFamily, 10.5F, FontStyle.Regular, GraphicsUnit.Point);
         _exitOnMouseMoveCheckBox.Margin = new Padding(0);
         _exitOnMouseMoveCheckBox.Text = "鼠标移动时退出遮罩";
         optionPanel.Controls.Add(_exitOnMouseMoveCheckBox);
@@ -264,14 +315,14 @@ internal sealed class ManagementForm : Form
             Dock = DockStyle.Fill,
             RowCount = 2
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 170));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 430));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 146));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 380));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
 
-        AddHotKeyRow(panel, 0, "切换黑屏", _toggleHotKeyInput, "默认 Ctrl+Alt...");
-        AddHotKeyRow(panel, 1, "快速定时菜单", _quickDelayHotKeyInput, "默认 Ctrl+Alt...");
+        AddHotKeyRow(panel, 0, "切换黑屏", _toggleHotKeyInput, "默认 Ctrl+Alt+B");
+        AddHotKeyRow(panel, 1, "快速定时菜单", _quickDelayHotKeyInput, "默认 Ctrl+Alt+T");
         return panel;
     }
 
@@ -279,38 +330,36 @@ internal sealed class ManagementForm : Form
     {
         var layout = new TableLayoutPanel
         {
-            ColumnCount = 6,
+            ColumnCount = 5,
             Dock = DockStyle.Fill,
+            Padding = new Padding(0, 8, 0, 0),
             RowCount = 1
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        ConfigurePrimaryButton(_startShadeButton, "启动遮罩", 186);
+        ConfigurePrimaryButton(_startShadeButton, "启动遮罩", 160);
         _startShadeButton.Click += (_, _) => StartShade();
+        _startShadeButton.Margin = new Padding(0);
         layout.Controls.Add(_startShadeButton, 1, 0);
 
-        ConfigureSecondaryButton(_delayShadeButton, "延时启动遮罩", 186);
+        ConfigureSecondaryButton(_delayShadeButton, "延时启动遮罩", 160);
         _delayShadeButton.Click += (_, _) => StartDelayedShade();
+        _delayShadeButton.Margin = new Padding(12, 0, 0, 0);
         layout.Controls.Add(_delayShadeButton, 2, 0);
 
-        var saveButton = CreateSecondaryButton("保存", (_, _) => SaveSettings(), 134);
+        var saveButton = CreateSecondaryButton("保存", (_, _) => SaveSettings(), 112);
+        saveButton.Margin = new Padding(12, 0, 0, 0);
         layout.Controls.Add(saveButton, 3, 0);
 
-        var closeButton = CreateSecondaryButton("关闭", (_, _) => Close(), 134);
+        var closeButton = CreateSecondaryButton("关闭", (_, _) => Close(), 112);
+        closeButton.Margin = new Padding(12, 0, 0, 0);
         layout.Controls.Add(closeButton, 4, 0);
 
-        foreach (Control control in layout.Controls)
-        {
-            control.Margin = new Padding(0, 10, 18, 0);
-        }
-
-        closeButton.Margin = new Padding(0, 10, 0, 0);
         return layout;
     }
 
@@ -319,10 +368,10 @@ internal sealed class ManagementForm : Form
         var card = new RoundedPanel
         {
             BorderColor = CardBorderColor,
-            CornerRadius = 12,
+            CornerRadius = 8,
             Dock = DockStyle.Fill,
             FillColor = Color.White,
-            Padding = new Padding(24, 20, 24, 24)
+            Padding = new Padding(24, 18, 24, 22)
         };
 
         var content = new TableLayoutPanel
@@ -334,14 +383,14 @@ internal sealed class ManagementForm : Form
         };
         content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         content.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         content.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var titleLabel = new Label
         {
             AutoEllipsis = true,
             Dock = DockStyle.Fill,
-            Font = new Font(Font.FontFamily, 18F, FontStyle.Bold, GraphicsUnit.Point),
+            Font = new Font(Font.FontFamily, 15.5F, FontStyle.Bold, GraphicsUnit.Point),
             ForeColor = Color.FromArgb(15, 23, 42),
             Text = title,
             TextAlign = ContentAlignment.MiddleLeft
@@ -355,7 +404,7 @@ internal sealed class ManagementForm : Form
             content.Controls.Add(headerAction, 1, 0);
         }
 
-        body.Margin = new Padding(0, 6, 0, 0);
+        body.Margin = new Padding(0, 4, 0, 0);
         content.Controls.Add(body, 0, 1);
         content.SetColumnSpan(body, 2);
 
@@ -373,10 +422,10 @@ internal sealed class ManagementForm : Form
 
     private Button CreateRefreshButton()
     {
-        var button = CreateSecondaryButton("刷新显示器", (_, _) => RefreshDisplayList(), 172);
+        var button = CreateSecondaryButton("刷新显示器", (_, _) => RefreshDisplayList(), 146);
         button.Image = CreateRefreshIcon(PrimaryTextColor);
         button.ImageAlign = ContentAlignment.MiddleLeft;
-        button.Padding = new Padding(14, 0, 14, 0);
+        button.Padding = new Padding(12, 0, 12, 0);
         button.TextAlign = ContentAlignment.MiddleRight;
         button.TextImageRelation = TextImageRelation.ImageBeforeText;
         return button;
@@ -391,10 +440,10 @@ internal sealed class ManagementForm : Form
         button.FlatAppearance.MouseDownBackColor = Color.FromArgb(18, 102, 223);
         button.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 131, 255);
         button.FlatStyle = FlatStyle.Flat;
-        button.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point);
+        button.Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
         button.ForeColor = Color.White;
-        button.MinimumSize = new Size(width, 46);
-        button.Size = new Size(width, 46);
+        button.MinimumSize = new Size(width, 40);
+        button.Size = new Size(width, 40);
         button.Text = text;
         button.UseVisualStyleBackColor = false;
         ApplyRoundedRegion(button, 7);
@@ -409,13 +458,37 @@ internal sealed class ManagementForm : Form
         button.FlatAppearance.MouseDownBackColor = Color.FromArgb(244, 247, 252);
         button.FlatAppearance.MouseOverBackColor = Color.FromArgb(249, 250, 252);
         button.FlatStyle = FlatStyle.Flat;
-        button.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point);
+        button.Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
         button.ForeColor = Color.FromArgb(31, 41, 55);
-        button.MinimumSize = new Size(width, 46);
-        button.Size = new Size(width, 46);
+        button.MinimumSize = new Size(width, 40);
+        button.Size = new Size(width, 40);
         button.Text = text;
         button.UseVisualStyleBackColor = false;
         ApplyRoundedRegion(button, 7);
+    }
+
+    private static void ConfigureNavButton(Button button, string text)
+    {
+        button.AutoSize = false;
+        button.Cursor = Cursors.Hand;
+        button.FlatStyle = FlatStyle.Flat;
+        button.Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point);
+        button.Margin = new Padding(0, 0, 8, 0);
+        button.MinimumSize = new Size(96, 38);
+        button.Size = new Size(96, 38);
+        button.Text = text;
+        button.UseVisualStyleBackColor = false;
+        ApplyRoundedRegion(button, 7);
+    }
+
+    private static void UpdateNavButtonStyle(Button button, bool isSelected)
+    {
+        button.BackColor = isSelected ? Color.FromArgb(232, 241, 255) : Color.White;
+        button.FlatAppearance.BorderColor = isSelected ? Color.FromArgb(169, 205, 255) : Color.White;
+        button.FlatAppearance.MouseDownBackColor = isSelected ? Color.FromArgb(220, 234, 255) : MutedBackColor;
+        button.FlatAppearance.MouseOverBackColor = isSelected ? Color.FromArgb(224, 237, 255) : MutedBackColor;
+        button.Font = new Font(button.Font.FontFamily, 10.5F, isSelected ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Point);
+        button.ForeColor = isSelected ? AccentColor : PrimaryTextColor;
     }
 
     private static Bitmap CreateRefreshIcon(Color color)
@@ -676,20 +749,19 @@ internal sealed class ManagementForm : Form
     {
         var label = new Label
         {
-            AutoSize = true,
             Dock = DockStyle.Fill,
-            Font = new Font(Font.FontFamily, 12F, FontStyle.Regular, GraphicsUnit.Point),
-            Margin = new Padding(0, 10, 18, 0),
+            Font = new Font(Font.FontFamily, 10.5F, FontStyle.Regular, GraphicsUnit.Point),
+            Margin = new Padding(0, 7, 18, 0),
             Text = labelText,
-            TextAlign = ContentAlignment.TopLeft
+            TextAlign = ContentAlignment.MiddleLeft
         };
         panel.Controls.Add(label, 0, row);
 
         inputBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        inputBox.Font = new Font(Font.FontFamily, 12F, FontStyle.Regular, GraphicsUnit.Point);
-        inputBox.Margin = new Padding(0, 4, 24, 0);
-        inputBox.MinimumSize = new Size(360, 40);
-        inputBox.Size = new Size(360, 40);
+        inputBox.Font = new Font(Font.FontFamily, 10.5F, FontStyle.Regular, GraphicsUnit.Point);
+        inputBox.Margin = new Padding(0, 4, 22, 0);
+        inputBox.MinimumSize = new Size(320, 34);
+        inputBox.Size = new Size(320, 34);
         panel.Controls.Add(inputBox, 1, row);
 
         var hint = new Label
@@ -697,9 +769,9 @@ internal sealed class ManagementForm : Form
             AutoEllipsis = true,
             Dock = DockStyle.Fill,
             ForeColor = SecondaryTextColor,
-            Margin = new Padding(0, 10, 0, 0),
+            Margin = new Padding(0, 7, 0, 0),
             Text = hintText,
-            TextAlign = ContentAlignment.TopLeft
+            TextAlign = ContentAlignment.MiddleLeft
         };
         panel.Controls.Add(hint, 2, row);
     }
@@ -756,42 +828,6 @@ internal sealed class ManagementForm : Form
 
         item.IsSelected = !item.IsSelected;
         _displayGrid.InvalidateCell(e.ColumnIndex, e.RowIndex);
-    }
-
-    private void Tabs_DrawItem(object? sender, DrawItemEventArgs e)
-    {
-        if (sender is not TabControl tabControl || e.Index < 0 || e.Index >= tabControl.TabPages.Count)
-        {
-            return;
-        }
-
-        var bounds = e.Bounds;
-        var isSelected = e.Index == tabControl.SelectedIndex;
-
-        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var pageBrush = new SolidBrush(PageBackColor);
-        e.Graphics.FillRectangle(pageBrush, bounds);
-
-        var tabBounds = Rectangle.Inflate(bounds, -2, -4);
-        using var backgroundBrush = new SolidBrush(isSelected ? Color.White : Color.FromArgb(250, 251, 253));
-        using var borderPen = new Pen(CardBorderColor);
-        using var tabPath = CreateRoundedRectanglePath(tabBounds, 8);
-        e.Graphics.FillPath(backgroundBrush, tabPath);
-        e.Graphics.DrawPath(borderPen, tabPath);
-
-        if (isSelected)
-        {
-            using var accentPen = new Pen(AccentColor, 3);
-            e.Graphics.DrawLine(accentPen, tabBounds.Left + 12, tabBounds.Bottom - 2, tabBounds.Right - 12, tabBounds.Bottom - 2);
-        }
-
-        TextRenderer.DrawText(
-            e.Graphics,
-            tabControl.TabPages[e.Index].Text,
-            new Font(Font.FontFamily, 11F, isSelected ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Point),
-            bounds,
-            Color.FromArgb(15, 23, 42),
-            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 
     private sealed class DisplayCheckBoxCell : DataGridViewTextBoxCell
@@ -919,5 +955,11 @@ internal sealed class ManagementForm : Form
         public string DisplayType { get; } = screen.Primary ? "主显示器" : "扩展显示器";
 
         public string Resolution { get; } = $"{screen.Bounds.Width}x{screen.Bounds.Height}";
+    }
+
+    private enum NavigationPage
+    {
+        Management,
+        About
     }
 }
