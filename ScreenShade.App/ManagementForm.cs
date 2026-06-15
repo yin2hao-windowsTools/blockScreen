@@ -1009,17 +1009,27 @@ internal sealed class ManagementForm : Form
     private static class DisplayNameResolver
     {
         private const int DisplayDeviceActive = 0x00000001;
+        private const int ErrorSuccess = 0;
+        private const int ErrorInsufficientBuffer = 122;
+        private const uint QdcOnlyActivePaths = 0x00000002;
+        private const uint DisplayConfigDeviceInfoGetSourceName = 1;
+        private const uint DisplayConfigDeviceInfoGetTargetName = 2;
 
         public static string GetDisplayName(Screen screen)
         {
-            var monitorDevice = GetActiveMonitorDevice(screen.DeviceName);
-            var displayName = GetWmiMonitorDisplayName(monitorDevice?.DeviceID);
+            var displayName = GetWmiMonitorNameByResolution(screen.Bounds.Size);
             if (!string.IsNullOrWhiteSpace(displayName))
             {
                 return displayName;
             }
 
-            displayName = monitorDevice?.DeviceString?.Trim() ?? string.Empty;
+            displayName = GetActiveDisplayConfigName(screen.DeviceName);
+            if (!string.IsNullOrWhiteSpace(displayName))
+            {
+                return displayName;
+            }
+
+            displayName = GetActiveMonitorDevice(screen.DeviceName)?.DeviceString?.Trim() ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(displayName))
             {
                 return displayName;
@@ -1028,42 +1038,106 @@ internal sealed class ManagementForm : Form
             return NormalizeDeviceName(screen.DeviceName);
         }
 
-        private static string GetWmiMonitorDisplayName(string? monitorDeviceId)
+        private static string GetWmiMonitorNameByResolution(Size screenSize)
+        {
+            var monitors = GetWmiMonitors();
+            var matchingMonitors = monitors
+                .Where(monitor => monitor.SupportsResolution(screenSize))
+                .ToArray();
+
+            var monitor = matchingMonitors.Length == 1
+                ? matchingMonitors[0]
+                : matchingMonitors.FirstOrDefault(monitor => monitor.IsInternal);
+
+            return monitor?.FriendlyName ?? string.Empty;
+        }
+
+        private static IReadOnlyList<MonitorDescriptor> GetWmiMonitors()
         {
             if (!OperatingSystem.IsWindows())
             {
-                return string.Empty;
-            }
-
-            var monitorHardwareCode = GetMonitorHardwareCode(monitorDeviceId);
-            if (string.IsNullOrWhiteSpace(monitorHardwareCode))
-            {
-                return string.Empty;
+                return [];
             }
 
             try
             {
-                using var searcher = new ManagementObjectSearcher(
+                var monitorsByInstanceName = new Dictionary<string, MonitorDescriptor>(StringComparer.OrdinalIgnoreCase);
+
+                using (var idSearcher = new ManagementObjectSearcher(
                     @"root\WMI",
-                    "SELECT InstanceName, UserFriendlyName FROM WmiMonitorID");
-
-                using var monitorObjects = searcher.Get();
-                foreach (ManagementObject monitorObject in monitorObjects)
+                    "SELECT InstanceName, UserFriendlyName FROM WmiMonitorID"))
+                using (var idObjects = idSearcher.Get())
                 {
-                    using (monitorObject)
+                    foreach (ManagementObject idObject in idObjects)
                     {
-                        if (!MatchesMonitorHardwareCode(monitorObject["InstanceName"] as string, monitorHardwareCode))
+                        using (idObject)
                         {
-                            continue;
-                        }
+                            var instanceName = idObject["InstanceName"] as string;
+                            if (string.IsNullOrWhiteSpace(instanceName))
+                            {
+                                continue;
+                            }
 
-                        var friendlyName = DecodeMonitorName(monitorObject["UserFriendlyName"] as ushort[]);
-                        if (!string.IsNullOrWhiteSpace(friendlyName))
-                        {
-                            return friendlyName;
+                            monitorsByInstanceName[instanceName] = new MonitorDescriptor(
+                                instanceName,
+                                DecodeMonitorName(idObject["UserFriendlyName"] as ushort[]));
                         }
                     }
                 }
+
+                using (var connectionSearcher = new ManagementObjectSearcher(
+                    @"root\WMI",
+                    "SELECT InstanceName, VideoOutputTechnology FROM WmiMonitorConnectionParams"))
+                using (var connectionObjects = connectionSearcher.Get())
+                {
+                    foreach (ManagementObject connectionObject in connectionObjects)
+                    {
+                        using (connectionObject)
+                        {
+                            var monitor = FindWmiMonitor(
+                                monitorsByInstanceName,
+                                connectionObject["InstanceName"] as string);
+                            if (monitor is not null)
+                            {
+                                monitor.OutputTechnology = Convert.ToUInt32(connectionObject["VideoOutputTechnology"]);
+                            }
+                        }
+                    }
+                }
+
+                using (var modesSearcher = new ManagementObjectSearcher(
+                    @"root\WMI",
+                    "SELECT InstanceName, MonitorSourceModes FROM WmiMonitorListedSupportedSourceModes"))
+                using (var modesObjects = modesSearcher.Get())
+                {
+                    foreach (ManagementObject modesObject in modesObjects)
+                    {
+                        using (modesObject)
+                        {
+                            var monitor = FindWmiMonitor(
+                                monitorsByInstanceName,
+                                modesObject["InstanceName"] as string);
+                            if (monitor is null)
+                            {
+                                continue;
+                            }
+
+                            foreach (var mode in (modesObject["MonitorSourceModes"] as Array) ?? Array.Empty<object>())
+                            {
+                                if (mode is ManagementBaseObject modeObject)
+                                {
+                                    monitor.SupportedResolutions.Add(new Size(
+                                        Convert.ToInt32(modeObject["HorizontalActivePixels"]),
+                                        Convert.ToInt32(modeObject["VerticalActivePixels"])));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return monitorsByInstanceName.Values
+                    .Where(monitor => !string.IsNullOrWhiteSpace(monitor.FriendlyName))
+                    .ToArray();
             }
             catch (ManagementException)
             {
@@ -1075,7 +1149,138 @@ internal sealed class ManagementForm : Form
             {
             }
 
+            return [];
+        }
+
+        private static MonitorDescriptor? FindWmiMonitor(
+            Dictionary<string, MonitorDescriptor> monitorsByInstanceName,
+            string? instanceName)
+        {
+            if (string.IsNullOrWhiteSpace(instanceName))
+            {
+                return null;
+            }
+
+            return monitorsByInstanceName.TryGetValue(instanceName, out var monitor)
+                ? monitor
+                : null;
+        }
+
+        private static string DecodeMonitorName(ushort[]? rawName)
+        {
+            if (rawName is null)
+            {
+                return string.Empty;
+            }
+
+            var chars = rawName
+                .TakeWhile(value => value > 0)
+                .Select(value => (char)value)
+                .ToArray();
+
+            return new string(chars).Trim();
+        }
+
+        private static string GetActiveDisplayConfigName(string displayDeviceName)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return string.Empty;
+            }
+
+            foreach (var path in GetActiveDisplayPaths())
+            {
+                var sourceName = GetSourceDeviceName(path.SourceInfo.AdapterId, path.SourceInfo.Id);
+                if (!displayDeviceName.Equals(sourceName, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var targetName = GetTargetDeviceName(path.TargetInfo.AdapterId, path.TargetInfo.Id);
+                if (!string.IsNullOrWhiteSpace(targetName))
+                {
+                    return targetName;
+                }
+            }
+
             return string.Empty;
+        }
+
+        private static IReadOnlyList<DisplayConfigPathInfo> GetActiveDisplayPaths()
+        {
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                var result = NativeMethods.GetDisplayConfigBufferSizes(
+                    QdcOnlyActivePaths,
+                    out var pathCount,
+                    out var modeCount);
+
+                if (result != ErrorSuccess || pathCount == 0)
+                {
+                    return [];
+                }
+
+                var paths = new DisplayConfigPathInfo[pathCount];
+                var modes = new DisplayConfigModeInfo[modeCount];
+                result = NativeMethods.QueryDisplayConfig(
+                    QdcOnlyActivePaths,
+                    ref pathCount,
+                    paths,
+                    ref modeCount,
+                    modes,
+                    IntPtr.Zero);
+
+                if (result == ErrorSuccess)
+                {
+                    return paths.Take((int)pathCount).ToArray();
+                }
+
+                if (result != ErrorInsufficientBuffer)
+                {
+                    return [];
+                }
+            }
+
+            return [];
+        }
+
+        private static string GetSourceDeviceName(DisplayConfigLuid adapterId, uint sourceId)
+        {
+            var sourceName = new DisplayConfigSourceDeviceName
+            {
+                Header = new DisplayConfigDeviceInfoHeader
+                {
+                    Type = DisplayConfigDeviceInfoGetSourceName,
+                    Size = (uint)Marshal.SizeOf<DisplayConfigSourceDeviceName>(),
+                    AdapterId = adapterId,
+                    Id = sourceId
+                }
+            };
+
+            return NativeMethods.DisplayConfigGetDeviceInfo(ref sourceName) == ErrorSuccess
+                ? sourceName.ViewGdiDeviceName.TrimEnd('\0').Trim()
+                : string.Empty;
+        }
+
+        private static string GetTargetDeviceName(DisplayConfigLuid adapterId, uint targetId)
+        {
+            var targetName = new DisplayConfigTargetDeviceName
+            {
+                Header = new DisplayConfigDeviceInfoHeader
+                {
+                    Type = DisplayConfigDeviceInfoGetTargetName,
+                    Size = (uint)Marshal.SizeOf<DisplayConfigTargetDeviceName>(),
+                    AdapterId = adapterId,
+                    Id = targetId
+                }
+            };
+
+            if (NativeMethods.DisplayConfigGetDeviceInfo(ref targetName) != ErrorSuccess)
+            {
+                return string.Empty;
+            }
+
+            return targetName.MonitorFriendlyDeviceName.TrimEnd('\0').Trim();
         }
 
         private static DisplayDevice? GetActiveMonitorDevice(string displayDeviceName)
@@ -1099,42 +1304,6 @@ internal sealed class ManagementForm : Form
             return null;
         }
 
-        private static string GetMonitorHardwareCode(string? monitorDeviceId)
-        {
-            if (string.IsNullOrWhiteSpace(monitorDeviceId))
-            {
-                return string.Empty;
-            }
-
-            var parts = monitorDeviceId.Split('\\', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return parts.Length >= 2 ? parts[1] : string.Empty;
-        }
-
-        private static bool MatchesMonitorHardwareCode(string? instanceName, string monitorHardwareCode)
-        {
-            if (string.IsNullOrWhiteSpace(instanceName) || string.IsNullOrWhiteSpace(monitorHardwareCode))
-            {
-                return false;
-            }
-
-            return instanceName.Contains($@"\{monitorHardwareCode}\", StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static string DecodeMonitorName(ushort[]? rawName)
-        {
-            if (rawName is null)
-            {
-                return string.Empty;
-            }
-
-            var chars = rawName
-                .TakeWhile(value => value > 0)
-                .Select(value => (char)value)
-                .ToArray();
-
-            return new string(chars).Trim();
-        }
-
         private static string NormalizeDeviceName(string deviceName)
         {
             const string displayPrefix = @"\\.\";
@@ -1149,6 +1318,176 @@ internal sealed class ManagementForm : Form
             {
                 cb = Marshal.SizeOf<DisplayDevice>()
             };
+        }
+
+        private sealed class MonitorDescriptor(string instanceName, string friendlyName)
+        {
+            private const uint InternalDisplayTechnology = 11;
+
+            public string InstanceName { get; } = instanceName;
+
+            public string FriendlyName { get; } = friendlyName;
+
+            public uint OutputTechnology { get; set; }
+
+            public HashSet<Size> SupportedResolutions { get; } = [];
+
+            public bool IsInternal => OutputTechnology == InternalDisplayTechnology;
+
+            public bool SupportsResolution(Size resolution)
+            {
+                return SupportedResolutions.Contains(resolution);
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigLuid
+        {
+            public uint LowPart;
+
+            public int HighPart;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigPathInfo
+        {
+            public DisplayConfigPathSourceInfo SourceInfo;
+
+            public DisplayConfigPathTargetInfo TargetInfo;
+
+            public uint Flags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigPathSourceInfo
+        {
+            public DisplayConfigLuid AdapterId;
+
+            public uint Id;
+
+            public uint ModeInfoIdx;
+
+            public uint StatusFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigPathTargetInfo
+        {
+            public DisplayConfigLuid AdapterId;
+
+            public uint Id;
+
+            public uint ModeInfoIdx;
+
+            public uint OutputTechnology;
+
+            public uint Rotation;
+
+            public uint Scaling;
+
+            public DisplayConfigRational RefreshRate;
+
+            public uint ScanLineOrdering;
+
+            [MarshalAs(UnmanagedType.Bool)]
+            public bool TargetAvailable;
+
+            public uint StatusFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigRational
+        {
+            public uint Numerator;
+
+            public uint Denominator;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigModeInfo
+        {
+            public uint InfoType;
+
+            public uint Id;
+
+            public DisplayConfigLuid AdapterId;
+
+            public DisplayConfigTargetMode TargetMode;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigTargetMode
+        {
+            public DisplayConfigVideoSignalInfo TargetVideoSignalInfo;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigVideoSignalInfo
+        {
+            public ulong PixelRate;
+
+            public DisplayConfigRational HSyncFreq;
+
+            public DisplayConfigRational VSyncFreq;
+
+            public DisplayConfig2DRegion ActiveSize;
+
+            public DisplayConfig2DRegion TotalSize;
+
+            public uint VideoStandard;
+
+            public uint ScanLineOrdering;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfig2DRegion
+        {
+            public uint Width;
+
+            public uint Height;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct DisplayConfigDeviceInfoHeader
+        {
+            public uint Type;
+
+            public uint Size;
+
+            public DisplayConfigLuid AdapterId;
+
+            public uint Id;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct DisplayConfigSourceDeviceName
+        {
+            public DisplayConfigDeviceInfoHeader Header;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string ViewGdiDeviceName;
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct DisplayConfigTargetDeviceName
+        {
+            public DisplayConfigDeviceInfoHeader Header;
+
+            public uint Flags;
+
+            public uint OutputTechnology;
+
+            public ushort EdidManufactureId;
+
+            public ushort EdidProductCodeId;
+
+            public uint ConnectorInstance;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+            public string MonitorFriendlyDeviceName;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string MonitorDevicePath;
         }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -1173,6 +1512,27 @@ internal sealed class ManagementForm : Form
 
         private static class NativeMethods
         {
+            [DllImport("user32.dll")]
+            public static extern int GetDisplayConfigBufferSizes(
+                uint flags,
+                out uint numPathArrayElements,
+                out uint numModeInfoArrayElements);
+
+            [DllImport("user32.dll")]
+            public static extern int QueryDisplayConfig(
+                uint flags,
+                ref uint numPathArrayElements,
+                [Out] DisplayConfigPathInfo[] pathArray,
+                ref uint numModeInfoArrayElements,
+                [Out] DisplayConfigModeInfo[] modeInfoArray,
+                IntPtr currentTopologyId);
+
+            [DllImport("user32.dll", EntryPoint = "DisplayConfigGetDeviceInfo")]
+            public static extern int DisplayConfigGetDeviceInfo(ref DisplayConfigSourceDeviceName requestPacket);
+
+            [DllImport("user32.dll", EntryPoint = "DisplayConfigGetDeviceInfo")]
+            public static extern int DisplayConfigGetDeviceInfo(ref DisplayConfigTargetDeviceName requestPacket);
+
             [DllImport("user32.dll", CharSet = CharSet.Unicode)]
             [return: MarshalAs(UnmanagedType.Bool)]
             public static extern bool EnumDisplayDevices(
