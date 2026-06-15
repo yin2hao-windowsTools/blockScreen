@@ -1,4 +1,6 @@
 using System.Drawing.Drawing2D;
+using System.Management;
+using System.Runtime.InteropServices;
 
 namespace ScreenShade.App;
 
@@ -221,16 +223,15 @@ internal sealed class ManagementForm : Form
 
         var displayColumn = new DataGridViewColumn(new DisplayCheckBoxCell())
         {
-            FillWeight = 24,
+            FillWeight = 48,
             HeaderText = "显示器",
-            MinimumWidth = 160,
+            MinimumWidth = 240,
             Name = "Display",
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable
         };
-        var typeColumn = CreateTextColumn("Type", "类型", 22);
-        var resolutionColumn = CreateTextColumn("Resolution", "分辨率", 24);
-        var locationColumn = CreateTextColumn("Location", "位置", 42);
+        var typeColumn = CreateTextColumn("Type", "类型", 24);
+        var resolutionColumn = CreateTextColumn("Resolution", "分辨率", 28);
 
         typeColumn.DefaultCellStyle = new DataGridViewCellStyle(_displayGrid.DefaultCellStyle)
         {
@@ -241,7 +242,7 @@ internal sealed class ManagementForm : Form
             Alignment = DataGridViewContentAlignment.MiddleCenter
         };
 
-        _displayGrid.Columns.AddRange(displayColumn, typeColumn, resolutionColumn, locationColumn);
+        _displayGrid.Columns.AddRange(displayColumn, typeColumn, resolutionColumn);
         _displayGrid.CurrentCellDirtyStateChanged += DisplayGrid_CurrentCellDirtyStateChanged;
         _displayGrid.CellMouseUp += DisplayGrid_CellMouseUp;
         return _displayGrid;
@@ -614,11 +615,11 @@ internal sealed class ManagementForm : Form
         _displayGrid.Rows.Clear();
 
         var screens = Screen.AllScreens;
-        for (var index = 0; index < screens.Length; index++)
+        foreach (var screen in screens)
         {
-            var item = new DisplayItem(index + 1, screens[index]);
+            var item = new DisplayItem(screen);
             item.IsSelected = checkedDisplayDeviceNames.Count == 0 || checkedDisplayDeviceNames.Contains(item.DeviceName);
-            var rowIndex = _displayGrid.Rows.Add(item.DisplayName, item.DisplayType, item.Resolution, item.DeviceName);
+            var rowIndex = _displayGrid.Rows.Add(item.DisplayName, item.DisplayType, item.Resolution);
             _displayGrid.Rows[rowIndex].Tag = item;
         }
 
@@ -992,17 +993,194 @@ internal sealed class ManagementForm : Form
         }
     }
 
-    private sealed class DisplayItem(int index, Screen screen)
+    private sealed class DisplayItem(Screen screen)
     {
         public bool IsSelected { get; set; }
 
         public string DeviceName { get; } = screen.DeviceName;
 
-        public string DisplayName { get; } = $"显示器 {index}";
+        public string DisplayName { get; } = DisplayNameResolver.GetDisplayName(screen);
 
         public string DisplayType { get; } = screen.Primary ? "主显示器" : "扩展显示器";
 
         public string Resolution { get; } = $"{screen.Bounds.Width}x{screen.Bounds.Height}";
+    }
+
+    private static class DisplayNameResolver
+    {
+        private const int DisplayDeviceActive = 0x00000001;
+
+        public static string GetDisplayName(Screen screen)
+        {
+            var monitorDevice = GetActiveMonitorDevice(screen.DeviceName);
+            var displayName = GetWmiMonitorDisplayName(monitorDevice?.DeviceID);
+            if (!string.IsNullOrWhiteSpace(displayName))
+            {
+                return displayName;
+            }
+
+            displayName = monitorDevice?.DeviceString?.Trim() ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(displayName))
+            {
+                return displayName;
+            }
+
+            return NormalizeDeviceName(screen.DeviceName);
+        }
+
+        private static string GetWmiMonitorDisplayName(string? monitorDeviceId)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return string.Empty;
+            }
+
+            var monitorHardwareCode = GetMonitorHardwareCode(monitorDeviceId);
+            if (string.IsNullOrWhiteSpace(monitorHardwareCode))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                using var searcher = new ManagementObjectSearcher(
+                    @"root\WMI",
+                    "SELECT InstanceName, UserFriendlyName FROM WmiMonitorID");
+
+                using var monitorObjects = searcher.Get();
+                foreach (ManagementObject monitorObject in monitorObjects)
+                {
+                    using (monitorObject)
+                    {
+                        if (!MatchesMonitorHardwareCode(monitorObject["InstanceName"] as string, monitorHardwareCode))
+                        {
+                            continue;
+                        }
+
+                        var friendlyName = DecodeMonitorName(monitorObject["UserFriendlyName"] as ushort[]);
+                        if (!string.IsNullOrWhiteSpace(friendlyName))
+                        {
+                            return friendlyName;
+                        }
+                    }
+                }
+            }
+            catch (ManagementException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+            catch (PlatformNotSupportedException)
+            {
+            }
+
+            return string.Empty;
+        }
+
+        private static DisplayDevice? GetActiveMonitorDevice(string displayDeviceName)
+        {
+            for (uint deviceIndex = 0; ; deviceIndex++)
+            {
+                var displayDevice = CreateDisplayDevice();
+                if (!NativeMethods.EnumDisplayDevices(displayDeviceName, deviceIndex, ref displayDevice, 0))
+                {
+                    break;
+                }
+
+                if ((displayDevice.StateFlags & DisplayDeviceActive) == 0)
+                {
+                    continue;
+                }
+
+                return displayDevice;
+            }
+
+            return null;
+        }
+
+        private static string GetMonitorHardwareCode(string? monitorDeviceId)
+        {
+            if (string.IsNullOrWhiteSpace(monitorDeviceId))
+            {
+                return string.Empty;
+            }
+
+            var parts = monitorDeviceId.Split('\\', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return parts.Length >= 2 ? parts[1] : string.Empty;
+        }
+
+        private static bool MatchesMonitorHardwareCode(string? instanceName, string monitorHardwareCode)
+        {
+            if (string.IsNullOrWhiteSpace(instanceName) || string.IsNullOrWhiteSpace(monitorHardwareCode))
+            {
+                return false;
+            }
+
+            return instanceName.Contains($@"\{monitorHardwareCode}\", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string DecodeMonitorName(ushort[]? rawName)
+        {
+            if (rawName is null)
+            {
+                return string.Empty;
+            }
+
+            var chars = rawName
+                .TakeWhile(value => value > 0)
+                .Select(value => (char)value)
+                .ToArray();
+
+            return new string(chars).Trim();
+        }
+
+        private static string NormalizeDeviceName(string deviceName)
+        {
+            const string displayPrefix = @"\\.\";
+            return deviceName.StartsWith(displayPrefix, StringComparison.Ordinal)
+                ? deviceName[displayPrefix.Length..]
+                : deviceName;
+        }
+
+        private static DisplayDevice CreateDisplayDevice()
+        {
+            return new DisplayDevice
+            {
+                cb = Marshal.SizeOf<DisplayDevice>()
+            };
+        }
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct DisplayDevice
+        {
+            public int cb;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+            public string DeviceName;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string DeviceString;
+
+            public int StateFlags;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string DeviceID;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+            public string DeviceKey;
+        }
+
+        private static class NativeMethods
+        {
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+            [return: MarshalAs(UnmanagedType.Bool)]
+            public static extern bool EnumDisplayDevices(
+                string? lpDevice,
+                uint iDevNum,
+                ref DisplayDevice lpDisplayDevice,
+                uint dwFlags);
+        }
     }
 
     private enum NavigationPage
