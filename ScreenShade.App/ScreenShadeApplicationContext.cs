@@ -32,8 +32,8 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
     private NotifyIcon CreateNotifyIcon()
     {
         var contextMenu = new ContextMenuStrip();
-        contextMenu.Items.Add("打开管理页面", null, (_, _) => ShowManagementForm());
-        contextMenu.Items.Add("快速定时黑屏", null, (_, _) => ShowQuickDelayForm());
+        contextMenu.Items.Add("打开管理页面", null, (_, _) => PostTrayMenuAction(contextMenu, ShowManagementForm));
+        contextMenu.Items.Add("快速定时黑屏", null, (_, _) => PostTrayMenuAction(contextMenu, ShowQuickDelayForm));
         _shadeMenuItem = new ToolStripMenuItem("启动遮罩", null, (_, _) => _overlayController.ToggleShade(_settingsStore.Settings));
         contextMenu.Items.Add(_shadeMenuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
@@ -51,6 +51,16 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
 
         notifyIcon.DoubleClick += (_, _) => ShowManagementForm();
         return notifyIcon;
+    }
+
+    private static void PostTrayMenuAction(ContextMenuStrip contextMenu, Action action)
+    {
+        if (contextMenu.IsDisposed)
+        {
+            return;
+        }
+
+        contextMenu.BeginInvoke((MethodInvoker)(() => action()));
     }
 
     private ToolStripMenuItem CreateAboutMenu()
@@ -72,8 +82,7 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
             _managementForm.FormClosed += (_, _) => _managementForm = null;
         }
 
-        _managementForm.Show();
-        _managementForm.Activate();
+        ShowAndActivate(_managementForm);
     }
 
     private void ShowQuickDelayForm()
@@ -84,8 +93,7 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
             _quickDelayForm.FormClosed += (_, _) => _quickDelayForm = null;
         }
 
-        _quickDelayForm.Show();
-        _quickDelayForm.Activate();
+        ShowAndActivate(_quickDelayForm);
     }
 
     private void ShowAboutForm()
@@ -96,8 +104,19 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
             _aboutForm.FormClosed += (_, _) => _aboutForm = null;
         }
 
-        _aboutForm.Show();
-        _aboutForm.Activate();
+        ShowAndActivate(_aboutForm);
+    }
+
+    private static void ShowAndActivate(Form form)
+    {
+        if (form.WindowState == FormWindowState.Minimized)
+        {
+            form.WindowState = FormWindowState.Normal;
+        }
+
+        form.Show();
+        form.BringToFront();
+        form.Activate();
     }
 
     private static void ShowLicenseInfo()
