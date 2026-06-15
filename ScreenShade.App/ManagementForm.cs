@@ -230,6 +230,12 @@ internal sealed class ManagementForm : Form
             ReadOnly = true,
             SortMode = DataGridViewColumnSortMode.NotSortable
         };
+        displayColumn.HeaderCell.Style = new DataGridViewCellStyle(_displayGrid.ColumnHeadersDefaultCellStyle)
+        {
+            Alignment = DataGridViewContentAlignment.MiddleLeft,
+            Padding = new Padding(56, 0, 0, 1)
+        };
+
         var typeColumn = CreateTextColumn("Type", "类型", 24);
         var resolutionColumn = CreateTextColumn("Resolution", "分辨率", 28);
 
