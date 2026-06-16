@@ -22,7 +22,7 @@ internal sealed class ManagementForm : Form
     private readonly SettingsStore _settingsStore;
     private readonly OverlayController _overlayController;
     private readonly DataGridView _displayGrid = new();
-    private readonly NumericUpDown _delayInput = new();
+    private readonly DelaySecondsTextBox _delayInput = new();
     private readonly CheckBox _brightnessCheckBox = new();
     private readonly CheckBox _startupCheckBox = new();
     private readonly CheckBox _exitOnMouseMoveCheckBox = new();
@@ -81,7 +81,7 @@ internal sealed class ManagementForm : Form
             RowCount = 2
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         root.Controls.Add(BuildNavigation(), 0, 0);
@@ -108,7 +108,7 @@ internal sealed class ManagementForm : Form
         {
             BackColor = Color.White,
             Dock = DockStyle.Fill,
-            Padding = new Padding(20, 10, 20, 9)
+            Padding = new Padding(20, 10, 20, 12)
         };
 
         var navLayout = new FlowLayoutPanel
@@ -445,14 +445,26 @@ internal sealed class ManagementForm : Form
         return button;
     }
 
-    private Button CreateRefreshButton()
+    private Control CreateRefreshButton()
     {
-        var button = CreateSecondaryButton("刷新", (_, _) => RefreshDisplayList(), 96);
+        var button = new RoundedIconButton
+        {
+            AutoSize = false,
+            BackColor = Color.White,
+            BorderColor = CardBorderColor,
+            CornerRadius = 8,
+            Cursor = Cursors.Hand,
+            Font = new Font("Microsoft YaHei UI", 10.5F, FontStyle.Regular, GraphicsUnit.Point),
+            ForeColor = Color.FromArgb(31, 41, 55),
+            HoverBackColor = Color.FromArgb(248, 250, 252),
+            MinimumSize = new Size(96, 36),
+            PressedBackColor = Color.FromArgb(241, 245, 249),
+            Size = new Size(96, 36),
+            Text = "刷新",
+            UseVisualStyleBackColor = false
+        };
+        button.Click += (_, _) => RefreshDisplayList();
         button.Image = CreateRefreshIcon(PrimaryTextColor);
-        button.ImageAlign = ContentAlignment.MiddleLeft;
-        button.Padding = new Padding(10, 0, 10, 0);
-        button.TextAlign = ContentAlignment.MiddleCenter;
-        button.TextImageRelation = TextImageRelation.ImageBeforeText;
         return button;
     }
 
@@ -959,6 +971,152 @@ internal sealed class ManagementForm : Form
             base.OnPaint(e);
             using var pen = new Pen(DividerColor);
             e.Graphics.DrawLine(pen, 0, Height - 1, Width, Height - 1);
+        }
+    }
+
+    private sealed class DelaySecondsTextBox : NumericUpDown
+    {
+        protected override void OnCreateControl()
+        {
+            base.OnCreateControl();
+            HideSpinnerButtons();
+        }
+
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            HideSpinnerButtons();
+        }
+
+        protected override void OnMouseWheel(MouseEventArgs e)
+        {
+            base.OnMouseWheel(e);
+            if (e is HandledMouseEventArgs handled)
+            {
+                handled.Handled = true;
+            }
+        }
+
+        private void HideSpinnerButtons()
+        {
+            foreach (Control child in Controls)
+            {
+                var typeName = child.GetType().Name;
+                if (typeName.Contains("Buttons", StringComparison.OrdinalIgnoreCase))
+                {
+                    child.Visible = false;
+                    child.Width = 0;
+                    continue;
+                }
+
+                child.Bounds = new Rectangle(0, 0, ClientSize.Width, ClientSize.Height);
+            }
+        }
+    }
+
+    private sealed class RoundedIconButton : Button
+    {
+        private bool _isHovered;
+        private bool _isPressed;
+
+        public Color BorderColor { get; set; } = CardBorderColor;
+
+        public int CornerRadius { get; set; } = 8;
+
+        public Color HoverBackColor { get; set; } = MutedBackColor;
+
+        public Color PressedBackColor { get; set; } = Color.FromArgb(241, 245, 249);
+
+        public RoundedIconButton()
+        {
+            FlatStyle = FlatStyle.Flat;
+            SetStyle(
+                ControlStyles.AllPaintingInWmPaint
+                | ControlStyles.OptimizedDoubleBuffer
+                | ControlStyles.ResizeRedraw
+                | ControlStyles.UserPaint,
+                true);
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            _isHovered = true;
+            Invalidate();
+            base.OnMouseEnter(e);
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            _isHovered = false;
+            _isPressed = false;
+            Invalidate();
+            base.OnMouseLeave(e);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs mevent)
+        {
+            if (mevent.Button == MouseButtons.Left)
+            {
+                _isPressed = true;
+                Invalidate();
+            }
+
+            base.OnMouseDown(mevent);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs mevent)
+        {
+            _isPressed = false;
+            Invalidate();
+            base.OnMouseUp(mevent);
+        }
+
+        protected override void OnPaint(PaintEventArgs pevent)
+        {
+            pevent.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            var fillColor = _isPressed ? PressedBackColor : _isHovered ? HoverBackColor : BackColor;
+            using var path = CreateRoundedRectanglePath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
+            using var brush = new SolidBrush(fillColor);
+            pevent.Graphics.FillPath(brush, path);
+
+            using var pen = new Pen(BorderColor);
+            pevent.Graphics.DrawPath(pen, path);
+
+            DrawContent(pevent.Graphics);
+
+            if (Focused && ShowFocusCues)
+            {
+                var focusBounds = Rectangle.Inflate(ClientRectangle, -4, -4);
+                ControlPaint.DrawFocusRectangle(pevent.Graphics, focusBounds);
+            }
+        }
+
+        private void DrawContent(Graphics graphics)
+        {
+            var image = Image;
+            var textSize = TextRenderer.MeasureText(Text, Font);
+            var imageWidth = image?.Width ?? 0;
+            var imageHeight = image?.Height ?? 0;
+            var gap = image is null || string.IsNullOrWhiteSpace(Text) ? 0 : 6;
+            var contentWidth = imageWidth + gap + textSize.Width;
+            var left = (Width - contentWidth) / 2;
+            var centerY = Height / 2;
+
+            if (image is not null)
+            {
+                var imageTop = centerY - imageHeight / 2;
+                graphics.DrawImage(image, left, imageTop, imageWidth, imageHeight);
+                left += imageWidth + gap;
+            }
+
+            var textBounds = new Rectangle(left, 0, Math.Min(textSize.Width + 4, Width - left), Height);
+            TextRenderer.DrawText(
+                graphics,
+                Text,
+                Font,
+                textBounds,
+                ForeColor,
+                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         }
     }
 
