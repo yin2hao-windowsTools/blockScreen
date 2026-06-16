@@ -81,7 +81,7 @@ internal sealed class ManagementForm : Form
             RowCount = 2
         };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         root.Controls.Add(BuildNavigation(), 0, 0);
@@ -108,15 +108,15 @@ internal sealed class ManagementForm : Form
         {
             BackColor = Color.White,
             Dock = DockStyle.Fill,
-            Padding = new Padding(20, 10, 20, 12)
+            Padding = new Padding(20, 12, 20, 14)
         };
 
         var navLayout = new FlowLayoutPanel
         {
-            AutoSize = true,
+            AutoSize = false,
             BackColor = Color.Transparent,
-            Dock = DockStyle.Left,
             FlowDirection = FlowDirection.LeftToRight,
+            Size = new Size(204, 44),
             WrapContents = false
         };
 
@@ -129,7 +129,15 @@ internal sealed class ManagementForm : Form
         navLayout.Controls.Add(_aboutNavButton);
 
         navBar.Controls.Add(navLayout);
+        navBar.Resize += (_, _) => PositionNavigationButtons(navBar, navLayout);
+        PositionNavigationButtons(navBar, navLayout);
         return navBar;
+    }
+
+    private static void PositionNavigationButtons(Control navBar, Control navLayout)
+    {
+        var y = Math.Max(navBar.Padding.Top, (navBar.ClientSize.Height - navLayout.Height - 1) / 2);
+        navLayout.Location = new Point(navBar.Padding.Left, y);
     }
 
     private void ShowPage(NavigationPage page)
