@@ -23,7 +23,19 @@ internal sealed class ScreenShadeSettings
         var quickDelayHotKey = QuickDelayHotKey?.Normalize(HotKeySettings.DefaultDelayMenu())
             ?? HotKeySettings.DefaultDelayMenu();
 
-        if (toggleShadeHotKey.HasSameGesture(quickDelayHotKey))
+        if (toggleShadeHotKey.HasSameGesture(HotKeySettings.LegacyDefaultToggle()))
+        {
+            toggleShadeHotKey = HotKeySettings.Empty();
+        }
+
+        if (quickDelayHotKey.HasSameGesture(HotKeySettings.LegacyDefaultDelayMenu()))
+        {
+            quickDelayHotKey = HotKeySettings.Empty();
+        }
+
+        if (toggleShadeHotKey.IsValid
+            && quickDelayHotKey.IsValid
+            && toggleShadeHotKey.HasSameGesture(quickDelayHotKey))
         {
             quickDelayHotKey = HotKeySettings.DefaultDelayMenu();
         }

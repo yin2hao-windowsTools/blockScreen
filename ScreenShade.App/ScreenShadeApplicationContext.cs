@@ -23,7 +23,7 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
         _settingsStore.SettingsChanged += SettingsStore_SettingsChanged;
         _overlayController.StateChanged += (_, _) => UpdateTrayMenu();
 
-        if (!_hotKeyWindow.IsToggleShadeRegistered || !_hotKeyWindow.IsQuickDelayRegistered)
+        if (HasConfiguredHotKeyRegistrationFailure())
         {
             ShowHotKeyWarning();
         }
@@ -132,7 +132,7 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
     {
         _hotKeyWindow.Apply(_settingsStore.Settings);
 
-        if (!_hotKeyWindow.IsToggleShadeRegistered || !_hotKeyWindow.IsQuickDelayRegistered)
+        if (HasConfiguredHotKeyRegistrationFailure())
         {
             ShowHotKeyWarning();
         }
@@ -173,5 +173,11 @@ internal sealed class ScreenShadeApplicationContext : ApplicationContext
             AppInfo.Name,
             "部分快捷键注册失败，请在管理页面更换未被占用的组合键。",
             ToolTipIcon.Warning);
+    }
+
+    private bool HasConfiguredHotKeyRegistrationFailure()
+    {
+        return (_hotKeyWindow.IsToggleShadeConfigured && !_hotKeyWindow.IsToggleShadeRegistered)
+            || (_hotKeyWindow.IsQuickDelayConfigured && !_hotKeyWindow.IsQuickDelayRegistered);
     }
 }

@@ -2,15 +2,36 @@ namespace ScreenShade.App;
 
 internal sealed class HotKeySettings
 {
-    public bool Control { get; set; } = true;
+    public bool Control { get; set; }
 
-    public bool Alt { get; set; } = true;
+    public bool Alt { get; set; }
 
     public bool Shift { get; set; }
 
-    public Keys Key { get; set; } = Keys.B;
+    public Keys Key { get; set; } = Keys.None;
 
     public static HotKeySettings DefaultToggle()
+    {
+        return Empty();
+    }
+
+    public static HotKeySettings DefaultDelayMenu()
+    {
+        return Empty();
+    }
+
+    public static HotKeySettings Empty()
+    {
+        return new HotKeySettings
+        {
+            Control = false,
+            Alt = false,
+            Shift = false,
+            Key = Keys.None
+        };
+    }
+
+    public static HotKeySettings LegacyDefaultToggle()
     {
         return new HotKeySettings
         {
@@ -21,7 +42,7 @@ internal sealed class HotKeySettings
         };
     }
 
-    public static HotKeySettings DefaultDelayMenu()
+    public static HotKeySettings LegacyDefaultDelayMenu()
     {
         return new HotKeySettings
         {
@@ -46,8 +67,10 @@ internal sealed class HotKeySettings
     public HotKeySettings Normalize(HotKeySettings fallback)
     {
         var normalized = Clone();
-        return normalized.IsValid ? normalized : fallback.Clone();
+        return normalized.IsEmpty || normalized.IsValid ? normalized : fallback.Clone();
     }
+
+    public bool IsEmpty => Key == Keys.None && !Control && !Alt && !Shift;
 
     public bool IsValid => Key != Keys.None && !IsModifierKey(Key) && (Control || Alt || Shift);
 

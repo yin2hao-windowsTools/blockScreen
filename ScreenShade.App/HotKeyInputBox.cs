@@ -88,6 +88,12 @@ internal sealed class HotKeyInputBox : Control
 
     private void CaptureHotKey(Keys keyData)
     {
+        if (ShouldClearHotKey(keyData))
+        {
+            HotKey = HotKeySettings.Empty();
+            return;
+        }
+
         var hotKey = HotKeySettings.FromKeyData(keyData);
         if (hotKey.IsValid)
         {
@@ -95,7 +101,7 @@ internal sealed class HotKeyInputBox : Control
         }
         else
         {
-            Text = "请按 Ctrl/Alt/Shift + 按键";
+            Text = "请按 Ctrl/Alt/Shift + 按键，或按 Del 清空";
             Invalidate();
         }
     }
@@ -105,6 +111,14 @@ internal sealed class HotKeyInputBox : Control
         var keyCode = keyData & Keys.KeyCode;
         var modifiers = keyData & Keys.Modifiers;
         return keyCode == Keys.Tab && (modifiers == Keys.None || modifiers == Keys.Shift);
+    }
+
+    private static bool ShouldClearHotKey(Keys keyData)
+    {
+        var keyCode = keyData & Keys.KeyCode;
+        var modifiers = keyData & Keys.Modifiers;
+        return modifiers == Keys.None
+            && keyCode is Keys.Delete or Keys.Back or Keys.Escape;
     }
 
     protected override void OnEnter(EventArgs e)

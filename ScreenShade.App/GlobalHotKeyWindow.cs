@@ -15,7 +15,9 @@ internal sealed class GlobalHotKeyWindow : NativeWindow, IDisposable
     private readonly Action _onToggleShade;
     private readonly Action _onQuickDelay;
     private bool _toggleShadeRegistered;
+    private bool _toggleShadeConfigured;
     private bool _quickDelayRegistered;
+    private bool _quickDelayConfigured;
 
     public GlobalHotKeyWindow(Action onToggleShade, Action onQuickDelay)
     {
@@ -26,15 +28,23 @@ internal sealed class GlobalHotKeyWindow : NativeWindow, IDisposable
 
     public bool IsToggleShadeRegistered => _toggleShadeRegistered;
 
+    public bool IsToggleShadeConfigured => _toggleShadeConfigured;
+
     public bool IsQuickDelayRegistered => _quickDelayRegistered;
+
+    public bool IsQuickDelayConfigured => _quickDelayConfigured;
 
     public void Apply(ScreenShadeSettings settings)
     {
         UnregisterAll();
 
         var normalizedSettings = settings.Clone();
-        _toggleShadeRegistered = Register(ToggleShadeHotKeyId, normalizedSettings.ToggleShadeHotKey);
-        _quickDelayRegistered = Register(QuickDelayHotKeyId, normalizedSettings.QuickDelayHotKey);
+        _toggleShadeConfigured = normalizedSettings.ToggleShadeHotKey.IsValid;
+        _quickDelayConfigured = normalizedSettings.QuickDelayHotKey.IsValid;
+        _toggleShadeRegistered = _toggleShadeConfigured
+            && Register(ToggleShadeHotKeyId, normalizedSettings.ToggleShadeHotKey);
+        _quickDelayRegistered = _quickDelayConfigured
+            && Register(QuickDelayHotKeyId, normalizedSettings.QuickDelayHotKey);
     }
 
     protected override void WndProc(ref Message m)

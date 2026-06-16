@@ -346,8 +346,8 @@ internal sealed class ManagementForm : Form
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
 
-        AddHotKeyRow(panel, 0, "切换黑屏", _toggleHotKeyInput, "默认 Ctrl+Alt+B");
-        AddHotKeyRow(panel, 1, "快速定时菜单", _quickDelayHotKeyInput, "默认 Ctrl+Alt+T");
+        AddHotKeyRow(panel, 0, "切换黑屏", _toggleHotKeyInput, "未设置时不启用快捷键");
+        AddHotKeyRow(panel, 1, "快速定时菜单", _quickDelayHotKeyInput, "未设置时不启用快捷键");
         return panel;
     }
 
@@ -752,19 +752,21 @@ internal sealed class ManagementForm : Form
                 : [.. selectedDisplays.Select(display => display.DeviceName)]
         };
 
-        if (!settings.ToggleShadeHotKey.IsValid)
+        if (!settings.ToggleShadeHotKey.IsEmpty && !settings.ToggleShadeHotKey.IsValid)
         {
             MessageBox.Show(this, "请为切换黑屏设置包含 Ctrl、Alt 或 Shift 的快捷键。", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return false;
         }
 
-        if (!settings.QuickDelayHotKey.IsValid)
+        if (!settings.QuickDelayHotKey.IsEmpty && !settings.QuickDelayHotKey.IsValid)
         {
             MessageBox.Show(this, "请为快速定时菜单设置包含 Ctrl、Alt 或 Shift 的快捷键。", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return false;
         }
 
-        if (settings.ToggleShadeHotKey.HasSameGesture(settings.QuickDelayHotKey))
+        if (settings.ToggleShadeHotKey.IsValid
+            && settings.QuickDelayHotKey.IsValid
+            && settings.ToggleShadeHotKey.HasSameGesture(settings.QuickDelayHotKey))
         {
             MessageBox.Show(this, "两个快捷键不能使用同一个组合。", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
             return false;
