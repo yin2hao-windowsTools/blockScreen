@@ -14,8 +14,8 @@ internal sealed class HotKeyInputBox : Control
         AccessibleRole = AccessibleRole.Text;
         BackColor = Color.FromArgb(250, 252, 255);
         Cursor = Cursors.IBeam;
-        MinimumSize = new Size(240, 40);
-        Size = new Size(320, 42);
+        MinimumSize = new Size(240, 34);
+        Size = new Size(320, 36);
         ReadOnly = true;
         TabStop = true;
 
